@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极简图片编辑器</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- 引入 Fabric.js 处理复杂的 Canvas 操作 -->
+    <script src="lib/fabric.min.js"></script>
+    <style>
+        body {
+            min-width: 800px;
+            min-height: 600px;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="top-nav">
+            <div class="logo-area">
+                <div class="logo-icon"></div>
+                <h1>Image Studio</h1>
+            </div>
+            <div class="action-history">
+                <button id="btn-undo" title="撤销 (Ctrl+Z)" disabled>↩ Undo</button>
+                <button id="btn-redo" title="重做 (Ctrl+Y)" disabled>↪ Redo</button>
+            </div>
+            <div class="export-area">
+                <button id="btn-reset" class="danger-btn" style="display: none;">删除图片</button>
+                <button id="btn-copy" class="secondary-btn" style="display: none;">复制剪贴板</button>
+                <button id="btn-download" class="primary-btn" style="display: none;">下载图片</button>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <!-- 左侧工具栏 -->
+            <aside class="sidebar">
+                <div class="sidebar-content">
+                    <div class="tool-list">
+                        <div class="tool-group">
+                            <h3>基础工具</h3>
+                            <button class="tool-btn active" data-tool="select">选择</button>
+                            <button class="tool-btn" data-tool="crop">裁剪</button>
+                            <button class="tool-btn" data-tool="resize">尺寸</button>
+                            <button class="tool-btn" data-tool="rotate">旋转</button>
+                            <button class="tool-btn" data-tool="filter">滤镜</button>
+                            <button class="tool-btn" data-tool="mosaic">马赛克</button>
+                        </div>
+                        <div class="tool-group">
+                            <h3>标注工具</h3>
+                            <button class="tool-btn" data-tool="arrow">添加箭头</button>
+                            <button class="tool-btn" data-tool="rect">添加矩形</button>
+                            <button class="tool-btn" data-tool="circle">添加圆形</button>
+                        </div>
+                        <div class="tool-group">
+                            <h3>水印/文字</h3>
+                            <button class="tool-btn" data-tool="text">添加文本</button>
+                            <button class="tool-btn" data-tool="image-watermark">添加图片</button>
+                        </div>
+                    </div>
+
+                    <!-- 动态属性面板 -->
+                    <div id="property-panel" class="property-panel">
+                        <div class="panel-header">工具属性</div>
+                        <div class="panel-content" id="panel-content">
+                            <!-- 这里将由 JS 根据选中的工具动态注入内容 -->
+                            <p class="empty-hint">选择已添加的内容进行调整</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 中心画布区域 -->
+            <section class="canvas-area" id="drop-zone">
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="upload-box">
+                        <span class="upload-icon">📁</span>
+                        <p>拖入图片 或 点击上传</p>
+                        <p class="sub-text">支持粘贴 (Ctrl + V)</p>
+                        <input type="file" id="file-input" accept="image/*" hidden>
+                        <button class="upload-btn">选择图片</button>
+                    </div>
+                </div>
+                <!-- 实际的 Canvas 容器 -->
+                <div id="canvas-wrapper" class="canvas-wrapper" style="display: none;">
+                    <canvas id="main-canvas"></canvas>
+                    <div class="zoom-indicator">Zoom: <span id="zoom-level">100%</span></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 核心逻辑 -->
+    <script src="scripts/main.js"></script>
+    <script src="scripts/history.js"></script>
+    <script src="scripts/tools.js"></script>
+</body>
+
+</html>

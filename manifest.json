@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "极简图片编辑器",
+  "version": "1.0.0",
+  "description": "即开即修，本地处理，安全隐私。支持裁剪、缩放、马赛克及水印。",
+  "action": {
+    "default_title": "极简图片编辑器"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "storage",
+    "clipboardWrite"
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/mediapipe/*.wasm",
+        "lib/mediapipe/*.tflite",
+        "lib/mediapipe/*.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}
