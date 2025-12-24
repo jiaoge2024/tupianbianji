@@ -1,8 +1,0 @@
-// test change
-/**
- * Main logic for the Image Editor
- */
-
-let canvas;
-const welcomeScreen = document.getElementById('welcome-screen');
-// ... rest of the file ...
