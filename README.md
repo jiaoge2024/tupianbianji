@@ -2,6 +2,11 @@
 
 一款基于 Chrome Manifest V3 开发的极简且专业的浏览器插件图片编辑器。主打“即开即修，本地处理，安全隐私”。
 
+## 界面预览
+
+![编辑器主界面](assets/screenshot-main.png)
+*提示：您可以将截图保存到 assets 目录下并命名为 screenshot-main.png 以在此显示*
+
 ## 核心特性
 
 - **多渠道导入**：支持点击上传、拖拽上传以及剪贴板直接粘贴 (Ctrl+V)。
