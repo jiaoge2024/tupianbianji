@@ -5,7 +5,6 @@
 ## 界面预览
 
 ![编辑器主界面](assets/screenshot-main.png)
-*提示：您可以将截图保存到 assets 目录下并命名为 screenshot-main.png 以在此显示*
 
 ## 核心特性
 
