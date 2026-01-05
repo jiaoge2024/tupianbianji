@@ -9,6 +9,8 @@
     <!-- 引入 Fabric.js 处理复杂的 Canvas 操作 -->
     <script src="lib/fabric.min.js"></script>
     <script src="lib/jszip.min.js"></script>
+    <!-- 引入 MediaPipe Selfie Segmentation 用于人像抠图 -->
+    <script src="lib/mediapipe/selfie_segmentation.js"></script>
     <style>
         body {
             min-width: 800px;
@@ -52,6 +54,7 @@
                             <button class="tool-btn" data-tool="filter">滤镜</button>
                             <button class="tool-btn" data-tool="mosaic">马赛克</button>
                             <button class="tool-btn" data-tool="grid-slice">网格切图</button>
+                            <button class="tool-btn" data-tool="ai-background">AI背景替换</button>
                         </div>
                         <div class="tool-group">
                             <h3>标注工具</h3>

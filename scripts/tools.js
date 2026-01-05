@@ -7,8 +7,27 @@ const toolManager = {
     cropRect: null,
     cropOverlays: [],
     cropSizeLabel: null,
+    toHexColor(color) {
+        if (!color) return '#000000';
+        if (typeof color !== 'string') return '#000000';
+        if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+        try {
+            const c = new fabric.Color(color);
+            return `#${c.toHex()}`;
+        } catch (_) {
+            return '#000000';
+        }
+    },
 
     activate(toolName) {
+        // 检查 canvas 是否已初始化
+        if (!window.canvas) {
+            if (toolName !== 'select') {
+                alert('请先打开或上传一张图片');
+            }
+            return;
+        }
+
         this.currentTool = toolName;
         this.resetCanvasState();
 
@@ -23,6 +42,9 @@ const toolManager = {
                 break;
             case 'grid-slice':
                 this.initGridSlice();
+                break;
+            case 'ai-background':
+                this.initAiBackground();
                 break;
             case 'text':
                 this.addText();
@@ -419,6 +441,167 @@ const toolManager = {
         }
     },
 
+    initAiBackground() {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) {
+            alert('请先导入图片');
+            this.activate('select');
+            return;
+        }
+        this.updatePropertyPanel('ai-background');
+    },
+
+    async applyAiBackground(type, value) {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) return;
+
+        const btn = document.getElementById('btn-apply-ai');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'AI 识别中...';
+
+        try {
+            console.log('开始 AI 处理，类型:', type);
+            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+                const requiredFiles = [
+                    'lib/mediapipe/selfie_segmentation.tflite',
+                    'lib/mediapipe/selfie_segmentation.binarypb',
+                    'lib/mediapipe/selfie_segmentation_solution_wasm_bin.wasm',
+                    'lib/mediapipe/selfie_segmentation_solution_simd_wasm_bin.wasm',
+                    'lib/mediapipe/selfie_segmentation_solution_wasm_bin.js',
+                    'lib/mediapipe/selfie_segmentation_solution_simd_wasm_bin.js',
+                ];
+                for (const filePath of requiredFiles) {
+                    const url = chrome.runtime.getURL(filePath);
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                            throw new Error(`${filePath} (Status: ${response.status})`);
+                        }
+                    } catch (e) {
+                        console.error('[AI] Fetch failed:', filePath, e);
+                        throw new Error(`无法加载 AI 资源：${filePath}`);
+                    }
+                }
+            }
+
+            if (typeof SelfieSegmentation === 'undefined') {
+                throw new Error('AI 组件 SelfieSegmentation 未定义，请检查脚本引入。');
+            }
+
+            if (!this.selfieSegmentation) {
+                this.selfieSegmentation = new SelfieSegmentation({
+                    locateFile: (file) => {
+                        const path = `lib/mediapipe/${file}`;
+                        console.log(`[AI] Loading MediaPipe file: ${file} -> ${path}`);
+                        
+                        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+                            try {
+                                const url = chrome.runtime.getURL(path);
+                                console.log(`[AI] Resolved URL: ${url}`);
+                                return url;
+                            } catch (e) {
+                                console.error(`[AI] Failed to resolve URL for ${path}:`, e);
+                            }
+                        }
+                        return path;
+                    }
+                });
+                this.selfieSegmentation.setOptions({
+                    modelSelection: 0,
+                    selfieMode: false,
+                });
+                console.log('AI 模型初始化成功');
+            }
+
+            const imgElement = baseImage._element;
+            
+            const results = await new Promise((resolve, reject) => {
+                let isResolved = false;
+                
+                this.selfieSegmentation.onResults((res) => {
+                    if (!isResolved) {
+                        isResolved = true;
+                        resolve(res);
+                    }
+                });
+
+                this.selfieSegmentation.send({ image: imgElement })
+                    .catch(err => {
+                        if (!isResolved) {
+                            isResolved = true;
+                            reject(err);
+                        }
+                    });
+
+                setTimeout(() => {
+                    if (!isResolved) {
+                        isResolved = true;
+                        reject(new Error('AI 处理超时，请重试。'));
+                    }
+                }, 15000);
+            });
+
+            if (!results || !results.segmentationMask) {
+                throw new Error('AI 无法识别图片中的人像');
+            }
+
+            const finalCanvas = document.createElement('canvas');
+            const finalCtx = finalCanvas.getContext('2d');
+            
+            const width = imgElement.naturalWidth || imgElement.width;
+            const height = imgElement.naturalHeight || imgElement.height;
+            finalCanvas.width = width;
+            finalCanvas.height = height;
+
+            if (type === 'color') {
+                finalCtx.fillStyle = value;
+                finalCtx.fillRect(0, 0, width, height);
+            } else if (type === 'image') {
+                finalCtx.drawImage(value, 0, 0, width, height);
+            }
+
+            const portraitCanvas = document.createElement('canvas');
+            const portraitCtx = portraitCanvas.getContext('2d');
+            portraitCanvas.width = width;
+            portraitCanvas.height = height;
+            
+            portraitCtx.drawImage(imgElement, 0, 0, width, height);
+            portraitCtx.globalCompositeOperation = 'destination-in';
+            portraitCtx.drawImage(results.segmentationMask, 0, 0, width, height);
+
+            finalCtx.drawImage(portraitCanvas, 0, 0);
+
+            // 4. 更新到 Fabric 画布
+            const dataURL = finalCanvas.toDataURL('image/png');
+            fabric.Image.fromURL(dataURL, (newImg) => {
+                newImg.set({
+                    left: baseImage.left,
+                    top: baseImage.top,
+                    scaleX: baseImage.scaleX,
+                    scaleY: baseImage.scaleY,
+                    angle: baseImage.angle,
+                    flipX: baseImage.flipX,
+                    flipY: baseImage.flipY
+                });
+                
+                canvas.remove(baseImage);
+                canvas.add(newImg);
+                canvas.sendToBack(newImg);
+                canvas.renderAll();
+                historyManager.push(canvas);
+                alert('背景替换成功！');
+            });
+
+        } catch (error) {
+            console.error('AI 处理详细错误:', error);
+            alert(`AI 处理失败: ${error.message || '未知错误'}`);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    },
+
     initMosaic() {
         canvas.isDrawingMode = true;
 
@@ -435,7 +618,8 @@ const toolManager = {
             top: 100,
             fontSize: 40,
             fill: '#ffffff',
-            fontFamily: 'Arial'
+            fontFamily: 'Arial',
+            textBaseline: 'alphabetic'
         });
         canvas.add(text);
         canvas.setActiveObject(text);
@@ -652,6 +836,57 @@ const toolManager = {
                 const cols = parseInt(document.getElementById('grid-cols').value);
                 this.applyGridSlice(rows, cols);
             });
+        } else if (tool === 'ai-background') {
+            panel.innerHTML = `
+                <div class="panel-header">AI 背景替换</div>
+                <div class="prop-item">
+                    <label>选择背景颜色</label>
+                    <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; margin-bottom:10px;">
+                        <div class="color-opt" style="background:#ffffff; border:1px solid #444;" data-color="#ffffff"></div>
+                        <div class="color-opt" style="background:#3b82f6;" data-color="#3b82f6"></div>
+                        <div class="color-opt" style="background:#ef4444;" data-color="#ef4444"></div>
+                        <div class="color-opt" style="background:#10b981;" data-color="#10b981"></div>
+                        <input type="color" id="ai-custom-color" style="width:100%; height:24px; padding:0; border:none; background:none; cursor:pointer;">
+                    </div>
+                </div>
+                <div class="prop-item">
+                    <label>或上传背景图片</label>
+                    <input type="file" id="ai-bg-upload" accept="image/*" style="width:100%; font-size:12px;">
+                </div>
+                <button id="btn-apply-ai" class="primary-btn" style="width:100%; margin-top:10px;">立即替换</button>
+                <p style="font-size:11px; color:#888; margin-top:10px;">注：首次加载 AI 模型需约 10-20 秒，请保持网络通畅。</p>
+            `;
+
+            let selectedColor = '#ffffff';
+            const colorOpts = panel.querySelectorAll('.color-opt');
+            colorOpts.forEach(opt => {
+                opt.style.height = '24px';
+                opt.style.cursor = 'pointer';
+                opt.style.borderRadius = '4px';
+                opt.addEventListener('click', () => {
+                    colorOpts.forEach(o => o.style.outline = 'none');
+                    opt.style.outline = '2px solid #3b82f6';
+                    selectedColor = opt.dataset.color;
+                    document.getElementById('ai-custom-color').value = selectedColor;
+                });
+            });
+
+            document.getElementById('btn-apply-ai').addEventListener('click', () => {
+                const customColor = document.getElementById('ai-custom-color').value;
+                const fileInput = document.getElementById('ai-bg-upload');
+                
+                if (fileInput.files && fileInput.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => this.applyAiBackground('image', img);
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(fileInput.files[0]);
+                } else {
+                    this.applyAiBackground('color', customColor || selectedColor);
+                }
+            });
         } else if (tool === 'resize') {
             const img = canvas.getObjects()[0];
             if (!img) return;
@@ -764,7 +999,7 @@ const toolManager = {
                     <div class="panel-header">文字属性</div>
                     <div class="prop-item">
                         <label>字体颜色</label>
-                        <input type="color" id="text-color" value="${activeObj.fill}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
+                        <input type="color" id="text-color" value="${this.toHexColor(activeObj.fill)}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
                     </div>
                     <div class="prop-item">
                         <label>字体大小</label>
@@ -834,7 +1069,7 @@ const toolManager = {
                     <div class="panel-header">标注属性</div>
                     <div class="prop-item">
                         <label>线条颜色</label>
-                        <input type="color" id="shape-stroke" value="${activeObj.stroke}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
+                        <input type="color" id="shape-stroke" value="${this.toHexColor(activeObj.stroke)}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
                     </div>
                     <div class="prop-item">
                         <label>线条粗细</label>

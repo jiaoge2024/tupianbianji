@@ -2,7 +2,7 @@
  * Main logic for the Image Editor
  */
 
-let canvas;
+window.canvas = null; // 显式声明全局 canvas
 const welcomeScreen = document.getElementById('welcome-screen');
 const canvasWrapper = document.getElementById('canvas-wrapper');
 const fileInput = document.getElementById('file-input');
@@ -13,11 +13,16 @@ const btnDownload = document.getElementById('btn-download');
 
 // Initialize Fabric Canvas
 function initCanvas() {
-    canvas = new fabric.Canvas('main-canvas', {
+    window.canvas = new fabric.Canvas('main-canvas', {
         backgroundColor: '#1a1a1a',
         preserveObjectStacking: true,
         stopContextMenu: true
     });
+    canvas = window.canvas; // 保持局部引用兼容
+
+    if (fabric?.Text?.prototype) fabric.Text.prototype.textBaseline = 'alphabetic';
+    if (fabric?.IText?.prototype) fabric.IText.prototype.textBaseline = 'alphabetic';
+    if (fabric?.Textbox?.prototype) fabric.Textbox.prototype.textBaseline = 'alphabetic';
 
     // Resize canvas to fit container initially
     resizeCanvasToFit();

@@ -21,6 +21,7 @@
       "resources": [
         "lib/mediapipe/*.wasm",
         "lib/mediapipe/*.tflite",
+        "lib/mediapipe/*.binarypb",
         "lib/mediapipe/*.js"
       ],
       "matches": [
