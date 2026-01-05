@@ -21,6 +21,9 @@ const toolManager = {
             case 'mosaic':
                 this.initMosaic();
                 break;
+            case 'grid-slice':
+                this.initGridSlice();
+                break;
             case 'text':
                 this.addText();
                 break;
@@ -340,6 +343,82 @@ const toolManager = {
         canvas.renderAll();
     },
 
+    initGridSlice() {
+        const objects = canvas.getObjects();
+        const baseImage = objects.find(obj => obj.type === 'image');
+
+        if (!baseImage) {
+            alert('请先导入图片');
+            this.activate('select');
+            return;
+        }
+
+        this.updatePropertyPanel('grid-slice');
+    },
+
+    async applyGridSlice(rows, cols) {
+        if (!rows || !cols || rows <= 0 || cols <= 0) {
+            alert('请输入有效的行数和列数');
+            return;
+        }
+
+        const objects = canvas.getObjects();
+        const baseImage = objects.find(obj => obj.type === 'image');
+        if (!baseImage) return;
+
+        // 获取图片的实际渲染位置和尺寸
+        // 注意：这里我们使用 canvas 的尺寸，因为用户可能已经进行了缩放或裁剪
+        const totalWidth = canvas.width;
+        const totalHeight = canvas.height;
+        
+        const sliceWidth = totalWidth / cols;
+        const sliceHeight = totalHeight / rows;
+
+        const zip = new JSZip();
+        const imgFolder = zip.folder("sliced_images");
+
+        const btn = document.getElementById('apply-grid-slice');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '处理中...';
+
+        try {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const left = c * sliceWidth;
+                    const top = r * sliceHeight;
+
+                    const dataURL = canvas.toDataURL({
+                        left: left,
+                        top: top,
+                        width: sliceWidth,
+                        height: sliceHeight,
+                        format: 'png',
+                        quality: 1
+                    });
+
+                    // 去掉 data:image/png;base64, 前缀
+                    const base64Data = dataURL.replace(/^data:image\/(png|jpg);base64,/, "");
+                    imgFolder.file(`slice_${r + 1}_${c + 1}.png`, base64Data, { base64: true });
+                }
+            }
+
+            const content = await zip.generateAsync({ type: "blob" });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `sliced_images_${rows}x${cols}.zip`;
+            link.click();
+            
+            alert('切图完成并已打包下载！');
+        } catch (error) {
+            console.error('切图失败:', error);
+            alert('切图过程中出错，请稍后重试。');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    },
+
     initMosaic() {
         canvas.isDrawingMode = true;
 
@@ -552,6 +631,26 @@ const toolManager = {
             `;
             document.getElementById('brush-size').addEventListener('input', (e) => {
                 canvas.freeDrawingBrush.width = parseInt(e.target.value);
+            });
+        } else if (tool === 'grid-slice') {
+            panel.innerHTML = `
+                <div class="panel-header">网格切图</div>
+                <div class="prop-item">
+                    <label>行数 (Rows)</label>
+                    <input type="number" id="grid-rows" value="3" min="1" max="20" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                </div>
+                <div class="prop-item">
+                    <label>列数 (Cols)</label>
+                    <input type="number" id="grid-cols" value="3" min="1" max="20" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                </div>
+                <p style="font-size: 12px; color: #888; margin-top: 10px;">将图片平均切割并打包成 ZIP 下载。</p>
+                <button id="apply-grid-slice" class="primary-btn" style="width:100%; margin-top:10px;">开始切图并下载</button>
+            `;
+
+            document.getElementById('apply-grid-slice').addEventListener('click', () => {
+                const rows = parseInt(document.getElementById('grid-rows').value);
+                const cols = parseInt(document.getElementById('grid-cols').value);
+                this.applyGridSlice(rows, cols);
             });
         } else if (tool === 'resize') {
             const img = canvas.getObjects()[0];
