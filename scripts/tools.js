@@ -7,6 +7,8 @@ const toolManager = {
     cropRect: null,
     cropOverlays: [],
     cropSizeLabel: null,
+    aiBgState: null,
+    idPhotoState: null,
     toHexColor(color) {
         if (!color) return '#000000';
         if (typeof color !== 'string') return '#000000';
@@ -28,6 +30,11 @@ const toolManager = {
             return;
         }
 
+        const prevTool = this.currentTool;
+        if (prevTool && prevTool !== toolName) {
+            this._flattenLayersIfNeeded(prevTool);
+        }
+
         this.currentTool = toolName;
         this.resetCanvasState();
 
@@ -42,6 +49,9 @@ const toolManager = {
                 break;
             case 'grid-slice':
                 this.initGridSlice();
+                break;
+            case 'id-photo':
+                this.initIDPhoto();
                 break;
             case 'ai-background':
                 this.initAiBackground();
@@ -97,9 +107,47 @@ const toolManager = {
         }
 
         canvas.forEachObject(obj => {
+            if (obj.selectable === false && obj.evented === false) return;
             obj.selectable = true;
             obj.evented = true;
         });
+    },
+
+    _flattenLayersIfNeeded(prevTool) {
+        if (prevTool !== 'ai-background' && prevTool !== 'id-photo') return;
+
+        const objects = canvas.getObjects();
+        const images = objects.filter(o => o.type === 'image');
+
+        if (prevTool === 'ai-background') {
+            if (objects.length !== 2 || images.length !== 2) return;
+            const hasLockedBg = images.some(i => i.selectable === false && i.evented === false);
+            const hasPortrait = images.some(i => i.selectable === true && i.evented === true);
+            if (!hasLockedBg || !hasPortrait) return;
+        }
+
+        if (prevTool === 'id-photo') {
+            if (objects.length !== 2) return;
+            const hasLockedRect = objects.some(o => o.type === 'rect' && o.selectable === false && o.evented === false);
+            const hasPortrait = objects.some(o => o.type === 'image' && o.selectable === true && o.evented === true);
+            if (!hasLockedRect || !hasPortrait) return;
+        }
+
+        const flattenedEl = canvas.toCanvasElement();
+        const flattenedImg = new fabric.Image(flattenedEl, { left: 0, top: 0 });
+        flattenedImg.isInternal = true;
+
+        const w = canvas.width;
+        const h = canvas.height;
+        canvas.clear();
+        canvas.setDimensions({ width: w, height: h });
+        canvas.add(flattenedImg);
+        canvas.sendToBack(flattenedImg);
+        canvas.renderAll();
+        historyManager.push(canvas);
+
+        if (prevTool === 'ai-background') this.aiBgState = null;
+        if (prevTool === 'id-photo') this.idPhotoState = null;
     },
 
     initCrop() {
@@ -448,12 +496,167 @@ const toolManager = {
             this.activate('select');
             return;
         }
+        canvas.selection = true;
+        const images = canvas.getObjects().filter(o => o.type === 'image');
+        const portrait = images.find(i => i.selectable === true && i.evented === true);
+        if (portrait) canvas.setActiveObject(portrait);
         this.updatePropertyPanel('ai-background');
     },
 
-    async applyAiBackground(type, value) {
+    initIDPhoto() {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) {
+            alert('请先导入图片');
+            this.activate('select');
+            return;
+        }
+        canvas.selection = true;
+        const portrait = canvas.getObjects().find(o => o.type === 'image' && o.selectable === true && o.evented === true);
+        if (portrait) canvas.setActiveObject(portrait);
+        this.updatePropertyPanel('id-photo');
+    },
+
+    async _ensureAIModel() {
+        if (this.selfieSegmentation) return;
+
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+            const requiredFiles = [
+                'lib/mediapipe/selfie_segmentation.tflite',
+                'lib/mediapipe/selfie_segmentation.binarypb',
+                'lib/mediapipe/selfie_segmentation_solution_wasm_bin.wasm',
+                'lib/mediapipe/selfie_segmentation_solution_simd_wasm_bin.wasm',
+                'lib/mediapipe/selfie_segmentation_solution_wasm_bin.js',
+                'lib/mediapipe/selfie_segmentation_solution_simd_wasm_bin.js',
+            ];
+            for (const filePath of requiredFiles) {
+                const url = chrome.runtime.getURL(filePath);
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`${filePath} (Status: ${response.status})`);
+                    }
+                } catch (e) {
+                    console.error('[AI] Fetch failed:', filePath, e);
+                    throw new Error(`无法加载 AI 资源：${filePath}`);
+                }
+            }
+        }
+
+        if (typeof SelfieSegmentation === 'undefined') {
+            throw new Error('AI 组件 SelfieSegmentation 未定义，请检查脚本引入。');
+        }
+
+        this.selfieSegmentation = new SelfieSegmentation({
+            locateFile: (file) => {
+                const path = `lib/mediapipe/${file}`;
+                if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+                    try {
+                        return chrome.runtime.getURL(path);
+                    } catch (e) {
+                        console.error(`[AI] Failed to resolve URL for ${path}:`, e);
+                    }
+                }
+                return path;
+            }
+        });
+        this.selfieSegmentation.setOptions({
+            modelSelection: 0,
+            selfieMode: false,
+        });
+    },
+
+    async _runSegmentation(imgElement) {
+        const results = await new Promise((resolve, reject) => {
+            let isResolved = false;
+
+            this.selfieSegmentation.onResults((res) => {
+                if (isResolved) return;
+                isResolved = true;
+                resolve(res);
+            });
+
+            this.selfieSegmentation.send({ image: imgElement })
+                .catch(err => {
+                    if (isResolved) return;
+                    isResolved = true;
+                    reject(err);
+                });
+
+            setTimeout(() => {
+                if (isResolved) return;
+                isResolved = true;
+                reject(new Error('AI 处理超时，请重试。'));
+            }, 15000);
+        });
+
+        return results;
+    },
+
+    _renderAiBackgroundComposite(scalePct, pushHistory = false, showAlert = false) {
+        if (!this.aiBgState) return;
+
+        const { bgCanvas, portraitCanvas } = this.aiBgState;
+        const scale = Math.max(0.5, Math.min(2.0, (scalePct || 100) / 100));
+
+        const images = canvas.getObjects().filter(o => o.type === 'image');
+        const existingBg = images.find(i => i.selectable === false && i.evented === false);
+        const existingPortrait = images.find(i => i.selectable === true && i.evented === true);
+
+        if (images.length === 2 && existingBg && existingPortrait) {
+            existingBg.setElement(bgCanvas);
+            existingBg.dirty = true;
+            canvas.renderAll();
+            if (pushHistory) historyManager.push(canvas);
+            if (showAlert) alert('背景替换成功！');
+            return;
+        }
+
         const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
         if (!baseImage) return;
+
+        const center = baseImage.getCenterPoint();
+        const common = {
+            left: center.x,
+            top: center.y,
+            originX: 'center',
+            originY: 'center',
+            angle: baseImage.angle,
+            flipX: baseImage.flipX,
+            flipY: baseImage.flipY
+        };
+
+        const bgImg = new fabric.Image(bgCanvas, {
+            ...common,
+            scaleX: baseImage.scaleX,
+            scaleY: baseImage.scaleY,
+            selectable: false,
+            evented: false
+        });
+        bgImg.isInternal = true;
+
+        const portraitImg = new fabric.Image(portraitCanvas, {
+            ...common,
+            scaleX: baseImage.scaleX * scale,
+            scaleY: baseImage.scaleY * scale,
+            selectable: true,
+            evented: true,
+            lockRotation: true
+        });
+        portraitImg.isInternal = true;
+
+        canvas.remove(baseImage);
+        canvas.add(bgImg);
+        canvas.add(portraitImg);
+        canvas.sendToBack(bgImg);
+        canvas.setActiveObject(portraitImg);
+        canvas.renderAll();
+        if (pushHistory) historyManager.push(canvas);
+        if (showAlert) alert('背景替换成功！');
+    },
+
+    async applyAiBackground(type, value, personScalePct = 100) {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage && !this.aiBgState) return;
 
         const btn = document.getElementById('btn-apply-ai');
         const originalText = btn.textContent;
@@ -462,136 +665,66 @@ const toolManager = {
 
         try {
             console.log('开始 AI 处理，类型:', type);
-            if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-                const requiredFiles = [
-                    'lib/mediapipe/selfie_segmentation.tflite',
-                    'lib/mediapipe/selfie_segmentation.binarypb',
-                    'lib/mediapipe/selfie_segmentation_solution_wasm_bin.wasm',
-                    'lib/mediapipe/selfie_segmentation_solution_simd_wasm_bin.wasm',
-                    'lib/mediapipe/selfie_segmentation_solution_wasm_bin.js',
-                    'lib/mediapipe/selfie_segmentation_solution_simd_wasm_bin.js',
-                ];
-                for (const filePath of requiredFiles) {
-                    const url = chrome.runtime.getURL(filePath);
-                    try {
-                        const response = await fetch(url);
-                        if (!response.ok) {
-                            throw new Error(`${filePath} (Status: ${response.status})`);
-                        }
-                    } catch (e) {
-                        console.error('[AI] Fetch failed:', filePath, e);
-                        throw new Error(`无法加载 AI 资源：${filePath}`);
-                    }
+            await this._ensureAIModel();
+
+            if (this.aiBgState && this.aiBgState.bgCanvas && this.aiBgState.portraitCanvas) {
+                const { width, height, bgCanvas } = this.aiBgState;
+                const bgCtx = bgCanvas.getContext('2d');
+                bgCtx.clearRect(0, 0, width, height);
+
+                if (type === 'color') {
+                    bgCtx.fillStyle = value;
+                    bgCtx.fillRect(0, 0, width, height);
+                } else if (type === 'image') {
+                    bgCtx.drawImage(value, 0, 0, width, height);
                 }
-            }
 
-            if (typeof SelfieSegmentation === 'undefined') {
-                throw new Error('AI 组件 SelfieSegmentation 未定义，请检查脚本引入。');
-            }
-
-            if (!this.selfieSegmentation) {
-                this.selfieSegmentation = new SelfieSegmentation({
-                    locateFile: (file) => {
-                        const path = `lib/mediapipe/${file}`;
-                        console.log(`[AI] Loading MediaPipe file: ${file} -> ${path}`);
-                        
-                        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-                            try {
-                                const url = chrome.runtime.getURL(path);
-                                console.log(`[AI] Resolved URL: ${url}`);
-                                return url;
-                            } catch (e) {
-                                console.error(`[AI] Failed to resolve URL for ${path}:`, e);
-                            }
-                        }
-                        return path;
-                    }
-                });
-                this.selfieSegmentation.setOptions({
-                    modelSelection: 0,
-                    selfieMode: false,
-                });
-                console.log('AI 模型初始化成功');
+                this.aiBgState.lastScalePct = personScalePct;
+                this._renderAiBackgroundComposite(personScalePct, true, true);
+                return;
             }
 
             const imgElement = baseImage._element;
-            
-            const results = await new Promise((resolve, reject) => {
-                let isResolved = false;
-                
-                this.selfieSegmentation.onResults((res) => {
-                    if (!isResolved) {
-                        isResolved = true;
-                        resolve(res);
-                    }
-                });
-
-                this.selfieSegmentation.send({ image: imgElement })
-                    .catch(err => {
-                        if (!isResolved) {
-                            isResolved = true;
-                            reject(err);
-                        }
-                    });
-
-                setTimeout(() => {
-                    if (!isResolved) {
-                        isResolved = true;
-                        reject(new Error('AI 处理超时，请重试。'));
-                    }
-                }, 15000);
-            });
+            const results = await this._runSegmentation(imgElement);
 
             if (!results || !results.segmentationMask) {
                 throw new Error('AI 无法识别图片中的人像');
             }
 
-            const finalCanvas = document.createElement('canvas');
-            const finalCtx = finalCanvas.getContext('2d');
-            
             const width = imgElement.naturalWidth || imgElement.width;
             const height = imgElement.naturalHeight || imgElement.height;
-            finalCanvas.width = width;
-            finalCanvas.height = height;
-
-            if (type === 'color') {
-                finalCtx.fillStyle = value;
-                finalCtx.fillRect(0, 0, width, height);
-            } else if (type === 'image') {
-                finalCtx.drawImage(value, 0, 0, width, height);
-            }
 
             const portraitCanvas = document.createElement('canvas');
             const portraitCtx = portraitCanvas.getContext('2d');
             portraitCanvas.width = width;
             portraitCanvas.height = height;
-            
+
             portraitCtx.drawImage(imgElement, 0, 0, width, height);
             portraitCtx.globalCompositeOperation = 'destination-in';
             portraitCtx.drawImage(results.segmentationMask, 0, 0, width, height);
+            portraitCtx.globalCompositeOperation = 'source-over';
 
-            finalCtx.drawImage(portraitCanvas, 0, 0);
+            const bgCanvas = document.createElement('canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = width;
+            bgCanvas.height = height;
 
-            // 4. 更新到 Fabric 画布
-            const dataURL = finalCanvas.toDataURL('image/png');
-            fabric.Image.fromURL(dataURL, (newImg) => {
-                newImg.set({
-                    left: baseImage.left,
-                    top: baseImage.top,
-                    scaleX: baseImage.scaleX,
-                    scaleY: baseImage.scaleY,
-                    angle: baseImage.angle,
-                    flipX: baseImage.flipX,
-                    flipY: baseImage.flipY
-                });
-                
-                canvas.remove(baseImage);
-                canvas.add(newImg);
-                canvas.sendToBack(newImg);
-                canvas.renderAll();
-                historyManager.push(canvas);
-                alert('背景替换成功！');
-            });
+            if (type === 'color') {
+                bgCtx.fillStyle = value;
+                bgCtx.fillRect(0, 0, width, height);
+            } else if (type === 'image') {
+                bgCtx.drawImage(value, 0, 0, width, height);
+            }
+
+            this.aiBgState = {
+                width,
+                height,
+                bgCanvas,
+                portraitCanvas,
+                lastScalePct: personScalePct
+            };
+
+            this._renderAiBackgroundComposite(personScalePct, true, true);
 
         } catch (error) {
             console.error('AI 处理详细错误:', error);
@@ -600,6 +733,212 @@ const toolManager = {
             btn.disabled = false;
             btn.textContent = originalText;
         }
+    },
+
+    _getIDPhotoTemplates() {
+        return {
+            small_1inch: { label: '小一寸 (22×32mm)', width: 260, height: 378, headroomRatio: 0.12, personHeightRatio: 0.82 },
+            inch_1: { label: '一寸 (25×35mm)', width: 295, height: 413, headroomRatio: 0.12, personHeightRatio: 0.80 },
+            big_1inch: { label: '大一寸 (33×48mm)', width: 390, height: 567, headroomRatio: 0.11, personHeightRatio: 0.76 },
+            inch_2: { label: '二寸 (35×49mm)', width: 413, height: 579, headroomRatio: 0.11, personHeightRatio: 0.74 },
+        };
+    },
+
+    _computeMaskBoundingBox(segmentationMask, width, height) {
+        const maskCanvas = document.createElement('canvas');
+        const maskCtx = maskCanvas.getContext('2d');
+        maskCanvas.width = width;
+        maskCanvas.height = height;
+        maskCtx.drawImage(segmentationMask, 0, 0, width, height);
+
+        const { data } = maskCtx.getImageData(0, 0, width, height);
+        const threshold = 128;
+        const step = 2;
+
+        let minX = width, minY = height, maxX = -1, maxY = -1;
+        for (let y = 0; y < height; y += step) {
+            const rowOffset = y * width * 4;
+            for (let x = 0; x < width; x += step) {
+                const i = rowOffset + x * 4;
+                const v = data[i];
+                if (v >= threshold) {
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x > maxX) maxX = x;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        if (maxX < 0 || maxY < 0) return null;
+        return { minX, minY, maxX, maxY };
+    },
+
+    async generateIDPhoto(sizeKey, bgColor, personScalePct = 100) {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) return;
+
+        const templates = this._getIDPhotoTemplates();
+        const template = templates[sizeKey];
+        if (!template) {
+            alert('请选择有效的证件照尺寸');
+            return;
+        }
+
+        const btn = document.getElementById('btn-generate-id-photo');
+        const originalText = btn?.textContent;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '生成中...';
+        }
+
+        try {
+            await this._ensureAIModel();
+
+            const imgElement = baseImage._element;
+            const results = await this._runSegmentation(imgElement);
+            if (!results || !results.segmentationMask) {
+                throw new Error('AI 无法识别图片中的人像');
+            }
+
+            const srcW = imgElement.naturalWidth || imgElement.width;
+            const srcH = imgElement.naturalHeight || imgElement.height;
+
+            const bbox = this._computeMaskBoundingBox(results.segmentationMask, srcW, srcH);
+            if (!bbox) {
+                throw new Error('无法定位人像区域，请换一张更清晰的照片');
+            }
+
+            const portraitCanvas = document.createElement('canvas');
+            const portraitCtx = portraitCanvas.getContext('2d');
+            portraitCanvas.width = srcW;
+            portraitCanvas.height = srcH;
+            portraitCtx.drawImage(imgElement, 0, 0, srcW, srcH);
+            portraitCtx.globalCompositeOperation = 'destination-in';
+            portraitCtx.drawImage(results.segmentationMask, 0, 0, srcW, srcH);
+            portraitCtx.globalCompositeOperation = 'source-over';
+
+            this.idPhotoState = {
+                template,
+                bgColor,
+                portraitCanvas,
+                bbox,
+                srcW,
+                srcH,
+                sizeKey,
+                lastScalePct: personScalePct
+            };
+
+            canvas.clear();
+            canvas.setDimensions({ width: template.width, height: template.height });
+            this._renderIDPhotoComposite(personScalePct, true);
+            alert('证件照已生成！');
+
+        } catch (error) {
+            console.error('证件照生成失败:', error);
+            alert(`证件照生成失败: ${error.message || '未知错误'}`);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    },
+
+    _renderIDPhotoComposite(scalePct, pushHistory = false) {
+        if (!this.idPhotoState) return;
+
+        const {
+            template,
+            bgColor,
+            portraitCanvas,
+            bbox,
+            srcW,
+            srcH,
+            sizeKey
+        } = this.idPhotoState;
+
+        canvas.clear();
+        canvas.setDimensions({ width: template.width, height: template.height });
+
+        const bgRect = new fabric.Rect({
+            left: 0,
+            top: 0,
+            width: template.width,
+            height: template.height,
+            fill: bgColor,
+            selectable: false,
+            evented: false
+        });
+        bgRect.isInternal = true;
+
+        const userScale = Math.max(0.5, Math.min(2.0, (scalePct || 100) / 100));
+        const targetHeadroom = template.height * (template.headroomRatio ?? 0.12);
+        const targetPersonHeight = template.height * (template.personHeightRatio ?? 0.78);
+
+        const padX = Math.max(2, Math.round(srcW * 0.02));
+        const padY = Math.max(2, Math.round(srcH * 0.02));
+        const cropX = Math.max(0, bbox.minX - padX);
+        const cropY = Math.max(0, bbox.minY - padY);
+        const cropMaxX = Math.min(srcW - 1, bbox.maxX + padX);
+        const cropMaxY = Math.min(srcH - 1, bbox.maxY + padY);
+        const cropW = cropMaxX - cropX + 1;
+        const cropH = cropMaxY - cropY + 1;
+
+        const tightCanvas = document.createElement('canvas');
+        const tightCtx = tightCanvas.getContext('2d');
+        tightCanvas.width = cropW;
+        tightCanvas.height = cropH;
+        tightCtx.drawImage(portraitCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+        const localBbox = {
+            minX: bbox.minX - cropX,
+            minY: bbox.minY - cropY,
+            maxX: bbox.maxX - cropX,
+            maxY: bbox.maxY - cropY
+        };
+
+        const bboxH = localBbox.maxY - localBbox.minY + 1;
+        const baseScale = targetPersonHeight / bboxH;
+        const scale = baseScale * userScale;
+
+        const centerX = (localBbox.minX + localBbox.maxX) / 2;
+        let x = template.width / 2 - centerX * scale;
+        let y = targetHeadroom - localBbox.minY * scale;
+
+        const marginX = template.width * 0.08;
+        const marginTop = template.height * 0.06;
+        const marginBottom = template.height * 0.98;
+
+        const bboxLeft = x + localBbox.minX * scale;
+        const bboxRight = x + localBbox.maxX * scale;
+        if (bboxLeft < marginX) x += (marginX - bboxLeft);
+        if (bboxRight > template.width - marginX) x -= (bboxRight - (template.width - marginX));
+
+        const bboxTop = y + localBbox.minY * scale;
+        const bboxBottom = y + localBbox.maxY * scale;
+        if (bboxTop < marginTop) y += (marginTop - bboxTop);
+        if (bboxBottom > marginBottom) y -= (bboxBottom - marginBottom);
+
+        const portraitImg = new fabric.Image(tightCanvas, {
+            left: x,
+            top: y,
+            originX: 'left',
+            originY: 'top',
+            scaleX: scale,
+            scaleY: scale,
+            selectable: true,
+            evented: true,
+            lockRotation: true
+        });
+        portraitImg.isInternal = true;
+
+        canvas.add(bgRect);
+        canvas.add(portraitImg);
+        canvas.sendToBack(bgRect);
+        canvas.setActiveObject(portraitImg);
+        canvas.renderAll();
+        if (pushHistory) historyManager.push(canvas);
     },
 
     initMosaic() {
@@ -836,6 +1175,53 @@ const toolManager = {
                 const cols = parseInt(document.getElementById('grid-cols').value);
                 this.applyGridSlice(rows, cols);
             });
+        } else if (tool === 'id-photo') {
+            const templates = this._getIDPhotoTemplates();
+            const sizeOptions = Object.entries(templates)
+                .map(([key, t]) => `<option value="${key}">${t.label}</option>`)
+                .join('');
+
+            panel.innerHTML = `
+                <div class="panel-header">证件照</div>
+                <div class="prop-item">
+                    <label>底色</label>
+                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:10px;">
+                        <div class="color-opt" style="background:#ffffff; border:1px solid #444; height:24px; border-radius:4px; cursor:pointer;" data-color="#ffffff"></div>
+                        <div class="color-opt" style="background:#3b82f6; border:1px solid #444; height:24px; border-radius:4px; cursor:pointer;" data-color="#3b82f6"></div>
+                        <div class="color-opt" style="background:#ef4444; border:1px solid #444; height:24px; border-radius:4px; cursor:pointer;" data-color="#ef4444"></div>
+                    </div>
+                </div>
+                <div class="prop-item">
+                    <label>尺寸</label>
+                    <select id="id-photo-size" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        ${sizeOptions}
+                    </select>
+                </div>
+                <button id="btn-generate-id-photo" class="primary-btn" style="width:100%; margin-top:10px;">一键生成证件照</button>
+                <p style="font-size:11px; color:#888; margin-top:10px;">生成后：点击人像，可拖拽/缩放调整。</p>
+            `;
+
+            let selectedColor = '#ffffff';
+            const colorOpts = panel.querySelectorAll('.color-opt');
+            colorOpts.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    colorOpts.forEach(o => o.style.outline = 'none');
+                    opt.style.outline = '2px solid #3b82f6';
+                    selectedColor = opt.dataset.color;
+                    this.idPhotoState = null;
+                });
+            });
+            if (colorOpts[0]) colorOpts[0].style.outline = '2px solid #3b82f6';
+
+            const sizeSelect = document.getElementById('id-photo-size');
+            sizeSelect.addEventListener('change', () => {
+                this.idPhotoState = null;
+            });
+
+            document.getElementById('btn-generate-id-photo').addEventListener('click', () => {
+                const sizeKey = document.getElementById('id-photo-size').value;
+                this.generateIDPhoto(sizeKey, selectedColor, 100);
+            });
         } else if (tool === 'ai-background') {
             panel.innerHTML = `
                 <div class="panel-header">AI 背景替换</div>
@@ -854,6 +1240,7 @@ const toolManager = {
                     <input type="file" id="ai-bg-upload" accept="image/*" style="width:100%; font-size:12px;">
                 </div>
                 <button id="btn-apply-ai" class="primary-btn" style="width:100%; margin-top:10px;">立即替换</button>
+                <p style="font-size:11px; color:#888; margin-top:10px;">替换后：点击人像，可拖拽/缩放调整。</p>
                 <p style="font-size:11px; color:#888; margin-top:10px;">注：首次加载 AI 模型需约 10-20 秒，请保持网络通畅。</p>
             `;
 
@@ -879,12 +1266,12 @@ const toolManager = {
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         const img = new Image();
-                        img.onload = () => this.applyAiBackground('image', img);
+                        img.onload = () => this.applyAiBackground('image', img, 100);
                         img.src = e.target.result;
                     };
                     reader.readAsDataURL(fileInput.files[0]);
                 } else {
-                    this.applyAiBackground('color', customColor || selectedColor);
+                    this.applyAiBackground('color', customColor || selectedColor, 100);
                 }
             });
         } else if (tool === 'resize') {

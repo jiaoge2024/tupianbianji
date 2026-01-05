@@ -74,6 +74,10 @@ function loadContent(url) {
 
         // Clear existing objects
         canvas.clear();
+        if (typeof toolManager !== 'undefined') {
+            toolManager.aiBgState = null;
+            toolManager.idPhotoState = null;
+        }
 
         // Scale to fit screen
         const maxWidth = dropZone.offsetWidth - 100;
