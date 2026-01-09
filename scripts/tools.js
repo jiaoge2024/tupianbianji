@@ -113,6 +113,12 @@ const toolManager = {
         this.cropOverlays.forEach(overlay => canvas.remove(overlay));
         this.cropOverlays = [];
 
+        // 移除网格线
+        if (this.cropGridLines) {
+            this.cropGridLines.forEach(line => canvas.remove(line));
+            this.cropGridLines = [];
+        }
+
         // 移除尺寸标签
         if (this.cropSizeLabel) {
             canvas.remove(this.cropSizeLabel);
@@ -185,63 +191,47 @@ const toolManager = {
         const imgWidth = baseImage.width * baseImage.scaleX;
         const imgHeight = baseImage.height * baseImage.scaleY;
 
-        // 创建裁剪框（默认占图片的 80%）
-        const cropWidth = imgWidth * 0.8;
-        const cropHeight = imgHeight * 0.8;
-        const cropLeft = imgLeft + (imgWidth - cropWidth) / 2;
-        const cropTop = imgTop + (imgHeight - cropHeight) / 2;
+        // 创建裁剪框（默认占图片的 100%）
+        const cropWidth = imgWidth;
+        const cropHeight = imgHeight;
+        const cropLeft = imgLeft;
+        const cropTop = imgTop;
 
         // 创建四个遮罩矩形（上、下、左、右）
-        // 上遮罩
         const topOverlay = new fabric.Rect({
-            left: imgLeft,
-            top: imgTop,
-            width: imgWidth,
-            height: cropTop - imgTop,
-            fill: 'rgba(0, 0, 0, 0.6)',
-            selectable: false,
-            evented: false,
-            excludeFromExport: true
+            left: imgLeft, top: imgTop, width: imgWidth, height: 0,
+            fill: 'rgba(0, 0, 0, 0.6)', selectable: false, evented: false, excludeFromExport: true
         });
-
-        // 下遮罩
         const bottomOverlay = new fabric.Rect({
-            left: imgLeft,
-            top: cropTop + cropHeight,
-            width: imgWidth,
-            height: imgTop + imgHeight - (cropTop + cropHeight),
-            fill: 'rgba(0, 0, 0, 0.6)',
-            selectable: false,
-            evented: false,
-            excludeFromExport: true
+            left: imgLeft, top: imgTop + imgHeight, width: imgWidth, height: 0,
+            fill: 'rgba(0, 0, 0, 0.6)', selectable: false, evented: false, excludeFromExport: true
         });
-
-        // 左遮罩
         const leftOverlay = new fabric.Rect({
-            left: imgLeft,
-            top: cropTop,
-            width: cropLeft - imgLeft,
-            height: cropHeight,
-            fill: 'rgba(0, 0, 0, 0.6)',
-            selectable: false,
-            evented: false,
-            excludeFromExport: true
+            left: imgLeft, top: imgTop, width: 0, height: imgHeight,
+            fill: 'rgba(0, 0, 0, 0.6)', selectable: false, evented: false, excludeFromExport: true
         });
-
-        // 右遮罩
         const rightOverlay = new fabric.Rect({
-            left: cropLeft + cropWidth,
-            top: cropTop,
-            width: imgLeft + imgWidth - (cropLeft + cropWidth),
-            height: cropHeight,
-            fill: 'rgba(0, 0, 0, 0.6)',
-            selectable: false,
-            evented: false,
-            excludeFromExport: true
+            left: imgLeft + imgWidth, top: imgTop, width: 0, height: imgHeight,
+            fill: 'rgba(0, 0, 0, 0.6)', selectable: false, evented: false, excludeFromExport: true
         });
 
         this.cropOverlays = [topOverlay, bottomOverlay, leftOverlay, rightOverlay];
         this.cropOverlays.forEach(overlay => canvas.add(overlay));
+
+        // Create Grid Lines (3x3)
+        this.cropGridLines = [];
+        for (let i = 1; i <= 2; i++) {
+            // Vertical lines
+            this.cropGridLines.push(new fabric.Line([0, 0, 0, 0], {
+                stroke: 'rgba(255, 255, 255, 0.5)', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+            }));
+            // Horizontal lines
+            this.cropGridLines.push(new fabric.Line([0, 0, 0, 0], {
+                stroke: 'rgba(255, 255, 255, 0.5)', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
+            }));
+        }
+        this.cropGridLines.forEach(line => canvas.add(line));
+
 
         // 创建裁剪框
         this.cropRect = new fabric.Rect({
@@ -314,32 +304,28 @@ const toolManager = {
 
             // 更新四个遮罩
             topOverlay.set({
-                left: imgLeft,
-                top: imgTop,
-                width: imgWidth,
-                height: finalTop - imgTop
+                left: imgLeft, top: imgTop, width: imgWidth, height: finalTop - imgTop
             });
-
             bottomOverlay.set({
-                left: imgLeft,
-                top: finalTop + finalHeight,
-                width: imgWidth,
-                height: imgTop + imgHeight - (finalTop + finalHeight)
+                left: imgLeft, top: finalTop + finalHeight, width: imgWidth, height: imgTop + imgHeight - (finalTop + finalHeight)
             });
-
             leftOverlay.set({
-                left: imgLeft,
-                top: finalTop,
-                width: finalLeft - imgLeft,
-                height: finalHeight
+                left: imgLeft, top: finalTop, width: finalLeft - imgLeft, height: finalHeight
+            });
+            rightOverlay.set({
+                left: finalLeft + finalWidth, top: finalTop, width: imgLeft + imgWidth - (finalLeft + finalWidth), height: finalHeight
             });
 
-            rightOverlay.set({
-                left: finalLeft + finalWidth,
-                top: finalTop,
-                width: imgLeft + imgWidth - (finalLeft + finalWidth),
-                height: finalHeight
-            });
+            // Update Grid Lines
+            // V1 (33%)
+            this.cropGridLines[0].set({ x1: finalLeft + finalWidth / 3, y1: finalTop, x2: finalLeft + finalWidth / 3, y2: finalTop + finalHeight });
+            // H1 (33%)
+            this.cropGridLines[1].set({ x1: finalLeft, y1: finalTop + finalHeight / 3, x2: finalLeft + finalWidth, y2: finalTop + finalHeight / 3 });
+            // V2 (66%)
+            this.cropGridLines[2].set({ x1: finalLeft + (finalWidth * 2) / 3, y1: finalTop, x2: finalLeft + (finalWidth * 2) / 3, y2: finalTop + finalHeight });
+            // H2 (66%)
+            this.cropGridLines[3].set({ x1: finalLeft, y1: finalTop + (finalHeight * 2) / 3, x2: finalLeft + finalWidth, y2: finalTop + (finalHeight * 2) / 3 });
+
 
             // 更新尺寸标签
             this.cropSizeLabel.set({
@@ -354,6 +340,9 @@ const toolManager = {
         this.cropRect.on('moving', updateCropOverlays);
         this.cropRect.on('scaling', updateCropOverlays);
         this.cropRect.on('modified', updateCropOverlays);
+
+        // Initial update to place grid lines correctly
+        updateCropOverlays();
 
         canvas.renderAll();
         this.updatePropertyPanel('crop');
@@ -371,6 +360,10 @@ const toolManager = {
         // 移除遮罩、裁剪框和标签
         this.cropOverlays.forEach(overlay => canvas.remove(overlay));
         this.cropOverlays = [];
+        if (this.cropGridLines) {
+            this.cropGridLines.forEach(line => canvas.remove(line));
+            this.cropGridLines = [];
+        }
         canvas.remove(this.cropRect);
         canvas.remove(this.cropSizeLabel);
 
@@ -407,8 +400,14 @@ const toolManager = {
             case '1:1':
                 newHeight = currentWidth;
                 break;
+            case '3:4':
+                newHeight = currentWidth * 4 / 3;
+                break;
             case '4:3':
                 newHeight = currentWidth * 3 / 4;
+                break;
+            case '9:16':
+                newHeight = currentWidth * 16 / 9;
                 break;
             case '16:9':
                 newHeight = currentWidth * 9 / 16;
@@ -1144,7 +1143,9 @@ const toolManager = {
                     <select id="crop-ratio" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
                         <option value="free">自由比例</option>
                         <option value="1:1">1:1 (正方形)</option>
+                        <option value="3:4">3:4</option>
                         <option value="4:3">4:3</option>
+                        <option value="9:16">9:16</option>
                         <option value="16:9">16:9</option>
                     </select>
                 </div>
