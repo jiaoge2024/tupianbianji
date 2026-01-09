@@ -28,6 +28,7 @@
             <div class="logo-area">
                 <div class="logo-icon"></div>
                 <h1>Image Studio</h1>
+                <span class="author-credit" id="author-credit">作者: jiaoge</span>
             </div>
             <div class="action-history">
                 <button id="btn-undo" title="撤销 (Ctrl+Z)" disabled>↩ Undo</button>
@@ -114,10 +115,20 @@
         </main>
     </div>
 
+    <!-- QR Code Modal -->
+    <div id="qr-modal" class="qr-modal" style="display: none;">
+        <div class="qr-modal-content">
+            <span class="qr-close">&times;</span>
+            <h3>扫码关注作者</h3>
+            <img src="assets/wechat-qr.jpg" alt="微信二维码" class="qr-image">
+            <p>VX：jgaigongju</p>
+        </div>
+    </div>
+
     <!-- 核心逻辑 -->
-    <script src="scripts/main.js"></script>
     <script src="scripts/history.js"></script>
     <script src="scripts/tools.js"></script>
+    <script src="scripts/main.js"></script>
 </body>
 
 </html>

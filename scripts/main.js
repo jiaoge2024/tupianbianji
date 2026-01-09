@@ -206,15 +206,15 @@ if (qualityInput) {
 document.getElementById('btn-download').addEventListener('click', () => {
     const format = formatSelect ? formatSelect.value : 'png';
     const quality = qualityInput ? parseFloat(qualityInput.value) : 0.9;
-    
+
     // fabric.js handles 'jpeg' as 'jpeg' but for input selector we might want to be consistent
-    const fabricFormat = format === 'jpeg' ? 'jpeg' : format; 
+    const fabricFormat = format === 'jpeg' ? 'jpeg' : format;
 
     const dataURL = canvas.toDataURL({
         format: fabricFormat,
         quality: quality
     });
-    
+
     const extension = format === 'jpeg' ? 'jpg' : format;
     const link = document.createElement('a');
     link.download = `edited-image.${extension}`;
@@ -237,3 +237,30 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
         console.error('复制失败', err);
     }
 });
+
+// QR Code Modal Handlers
+const authorCredit = document.getElementById('author-credit');
+const qrModal = document.getElementById('qr-modal');
+const qrClose = document.querySelector('.qr-close');
+
+if (authorCredit) {
+    authorCredit.addEventListener('click', () => {
+        qrModal.style.display = 'flex';
+    });
+}
+
+if (qrClose) {
+    qrClose.addEventListener('click', () => {
+        qrModal.style.display = 'none';
+    });
+}
+
+// Close modal when clicking outside
+if (qrModal) {
+    qrModal.addEventListener('click', (e) => {
+        if (e.target === qrModal) {
+            qrModal.style.display = 'none';
+        }
+    });
+}
+
