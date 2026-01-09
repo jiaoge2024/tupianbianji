@@ -30,6 +30,19 @@ const toolManager = {
             return;
         }
 
+        // 如果点击的是当前已激活的工具，且不是'select'，则切换回'select'（实现取消当前工具的功能）
+        if (this.currentTool === toolName && toolName !== 'select') {
+            // 对于像 'rect' 这种一次性添加的工具，不应该 toggle，但目前 rect 是直接添加，
+            // 只有像 crop/mosaic 这种有持续状态的才需要 toggle。
+            // 不过为了统一体验，我们可以让所有按钮点击第二次都回到 default 状态
+            // 除非是像 addRect 这种立即执行的，但 addRect 执行完其实也就在 default 状态了
+            // 所以这里主要针对 Mosaic, Crop 等模式
+            this.activate('select');
+            // 更新 UI 状态
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+            return;
+        }
+
         const prevTool = this.currentTool;
         if (prevTool && prevTool !== toolName) {
             this._flattenLayersIfNeeded(prevTool);
@@ -440,7 +453,7 @@ const toolManager = {
         // 注意：这里我们使用 canvas 的尺寸，因为用户可能已经进行了缩放或裁剪
         const totalWidth = canvas.width;
         const totalHeight = canvas.height;
-        
+
         const sliceWidth = totalWidth / cols;
         const sliceHeight = totalHeight / rows;
 
@@ -478,7 +491,7 @@ const toolManager = {
             link.href = URL.createObjectURL(content);
             link.download = `sliced_images_${rows}x${cols}.zip`;
             link.click();
-            
+
             alert('切图完成并已打包下载！');
         } catch (error) {
             console.error('切图失败:', error);
@@ -1261,7 +1274,7 @@ const toolManager = {
             document.getElementById('btn-apply-ai').addEventListener('click', () => {
                 const customColor = document.getElementById('ai-custom-color').value;
                 const fileInput = document.getElementById('ai-bg-upload');
-                
+
                 if (fileInput.files && fileInput.files[0]) {
                     const reader = new FileReader();
                     reader.onload = (e) => {
