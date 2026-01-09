@@ -11,6 +11,12 @@ const btnReset = document.getElementById('btn-reset');
 const btnCopy = document.getElementById('btn-copy');
 const btnDownload = document.getElementById('btn-download');
 
+const exportControls = document.querySelector('.export-controls');
+const formatSelect = document.getElementById('export-format');
+const qualityWrapper = document.getElementById('quality-wrapper');
+const qualityInput = document.getElementById('export-quality');
+const qualityValue = document.getElementById('quality-value');
+
 // Initialize Fabric Canvas
 function initCanvas() {
     window.canvas = new fabric.Canvas('main-canvas', {
@@ -101,6 +107,7 @@ function loadContent(url) {
         if (btnReset) btnReset.style.display = 'block';
         if (btnCopy) btnCopy.style.display = 'block';
         if (btnDownload) btnDownload.style.display = 'block';
+        if (exportControls) exportControls.style.display = 'flex';
 
         // Initialize history with first state
         historyManager.clear();
@@ -125,6 +132,7 @@ function resetEditor() {
         if (btnReset) btnReset.style.display = 'none';
         if (btnCopy) btnCopy.style.display = 'none';
         if (btnDownload) btnDownload.style.display = 'none';
+        if (exportControls) exportControls.style.display = 'none';
 
         // Reset history and tools
         historyManager.clear();
@@ -177,14 +185,39 @@ document.querySelectorAll('.tool-btn').forEach(btn => {
     });
 });
 
-// Export Logic
-document.getElementById('btn-download').addEventListener('click', () => {
-    const dataURL = canvas.toDataURL({
-        format: 'png',
-        quality: 1
+// Export Logic and Format Control
+if (formatSelect) {
+    formatSelect.addEventListener('change', () => {
+        const isLossless = formatSelect.value === 'png';
+        if (qualityWrapper) {
+            qualityWrapper.style.display = isLossless ? 'none' : 'flex';
+        }
     });
+}
+
+if (qualityInput) {
+    qualityInput.addEventListener('input', () => {
+        if (qualityValue) {
+            qualityValue.textContent = qualityInput.value;
+        }
+    });
+}
+
+document.getElementById('btn-download').addEventListener('click', () => {
+    const format = formatSelect ? formatSelect.value : 'png';
+    const quality = qualityInput ? parseFloat(qualityInput.value) : 0.9;
+    
+    // fabric.js handles 'jpeg' as 'jpeg' but for input selector we might want to be consistent
+    const fabricFormat = format === 'jpeg' ? 'jpeg' : format; 
+
+    const dataURL = canvas.toDataURL({
+        format: fabricFormat,
+        quality: quality
+    });
+    
+    const extension = format === 'jpeg' ? 'jpg' : format;
     const link = document.createElement('a');
-    link.download = 'edited-image.png';
+    link.download = `edited-image.${extension}`;
     link.href = dataURL;
     link.click();
 });

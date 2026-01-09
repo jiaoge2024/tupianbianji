@@ -34,6 +34,19 @@
                 <button id="btn-redo" title="重做 (Ctrl+Y)" disabled>↪ Redo</button>
             </div>
             <div class="export-area">
+                <div class="export-controls" style="display: none; align-items: center; gap: 10px; margin-right: 15px;">
+                    <select id="export-format" class="nav-select">
+                        <option value="png">PNG</option>
+                        <option value="jpeg">JPEG</option>
+                        <option value="webp">WEBP</option>
+                    </select>
+                    <div id="quality-wrapper" style="display: none; align-items: center; gap: 5px;">
+                        <label for="export-quality" style="color: #ccc; font-size: 12px;">质量</label>
+                        <input type="range" id="export-quality" min="0.1" max="1" step="0.1" value="0.9"
+                            style="width: 60px;">
+                        <span id="quality-value" style="color: #ccc; font-size: 12px; min-width: 24px;">0.9</span>
+                    </div>
+                </div>
                 <button id="btn-reset" class="danger-btn" style="display: none;">删除图片</button>
                 <button id="btn-copy" class="secondary-btn" style="display: none;">复制剪贴板</button>
                 <button id="btn-download" class="primary-btn" style="display: none;">下载图片</button>
@@ -55,7 +68,7 @@
                             <button class="tool-btn" data-tool="mosaic">马赛克</button>
                             <button class="tool-btn" data-tool="grid-slice">网格切图</button>
                             <button class="tool-btn" data-tool="id-photo">证件照</button>
-                            <button class="tool-btn" data-tool="ai-background">AI背景替换</button>
+                            <button class="tool-btn" data-tool="ai-background">背景替换</button>
                         </div>
                         <div class="tool-group">
                             <h3>标注工具</h3>

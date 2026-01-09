@@ -428,7 +428,32 @@ body {
     }
 }
 
-/* AI 背景替换颜色选项 */
+/* Export Controls */
+.export-controls {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nav-select {
+    background: #333;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+}
+
+.nav-select:hover {
+    border-color: #666;
+}
+
+/* AI 鑳屾櫙鏇挎崲棰滆壊閫夐」 */
 .color-opt:hover {
     transform: scale(1.1);
     transition: transform 0.2s;
