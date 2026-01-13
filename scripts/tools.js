@@ -1157,11 +1157,12 @@ const toolManager = {
             this.iconCanvas.setActiveObject(img);
             this.iconCanvas.renderAll();
 
-            this.iconGenState = { mode, imageUrl };
+            // 保存原始图片信息，用于下载时正确缩放
+            this.iconGenState = { mode, imageUrl, originalImage: img };
             if (keywordDisplay) {
                 keywordDisplay.textContent = '✅ 图标已加载到预览区';
             }
-        });
+        }, { crossOrigin: 'anonymous' });
     },
 
     // AI生成图标 - 集成 Gemini 2.5 API（使用独立画布）
@@ -1280,13 +1281,70 @@ const toolManager = {
             const zip = new JSZip();
             const imgFolder = zip.folder('extension-icons');
 
-            for (const size of sizes) {
-                const dataUrl = this.iconCanvas.toDataURL({
-                    format: 'png',
-                    multiplier: size / 280  // iconCanvas 宽度是 280
+            // 获取当前画布中的图片对象
+            const currentImg = this.iconCanvas.getObjects()[0];
+            if (!currentImg) {
+                alert('无法获取图片对象');
+                return;
+            }
+
+            // 获取原始图片尺寸（使用未缩放的尺寸）
+            const originalWidth = currentImg.width;
+            const originalHeight = currentImg.height;
+
+            // 辅助函数：克隆图片并生成指定尺寸的图标
+            const generateIconOfSize = (size) => {
+                return new Promise((resolve, reject) => {
+                    // 创建一个临时画布用于生成该尺寸的图标
+                    const tempCanvas = new fabric.Canvas(null, {
+                        width: size,
+                        height: size,
+                        backgroundColor: '#2d2d2d'
+                    });
+
+                    // 克隆原始图片
+                    currentImg.clone((clonedImg) => {
+                        try {
+                            // 重置缩放，使用原始尺寸
+                            clonedImg.scale(1);
+
+                            // 计算缩放比例：让图片填充目标尺寸的正方形
+                            const scale = Math.max(size / originalWidth, size / originalHeight);
+                            clonedImg.scale(scale);
+
+                            tempCanvas.add(clonedImg);
+                            tempCanvas.centerObject(clonedImg);
+                            tempCanvas.renderAll();
+
+                            // 转换为 data URL
+                            const dataUrl = tempCanvas.toDataURL({
+                                format: 'png',
+                                multiplier: 1
+                            });
+                            const base64Data = dataUrl.replace(/^data:image\/(png|jpg);base64,/, '');
+
+                            // 清理临时画布
+                            tempCanvas.dispose();
+
+                            resolve({
+                                size: size,
+                                data: base64Data
+                            });
+                        } catch (err) {
+                            tempCanvas.dispose();
+                            reject(err);
+                        }
+                    });
                 });
-                const base64Data = dataUrl.replace(/^data:image\/(png|jpg);base64,/, '');
-                imgFolder.file(`icon-${size}x${size}.png`, base64Data, { base64: true });
+            };
+
+            // 并发生成所有尺寸的图标
+            const iconPromises = sizes.map(size => generateIconOfSize(size));
+            const icons = await Promise.all(iconPromises);
+
+            // 添加到 zip 文件
+            for (const icon of icons) {
+                imgFolder.file(`icon-${icon.size}x${icon.size}.png`, icon.data, { base64: true });
             }
 
             // 生成 manifest 片段
@@ -1628,7 +1686,7 @@ const toolManager = {
                 <div class="prop-item">
                     <label>图标预览</label>
                     <div id="icon-preview-wrapper" style="display:flex; justify-content:center; align-items:center; background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:10px; margin-top:5px;">
-                        <canvas id="icon-preview-canvas"></canvas>
+                        <canvas id="icon-preview-canvas" width="280" height="280"></canvas>
                     </div>
                     <p style="font-size:10px; color:#666; margin-top:5px; text-align:center;">预览尺寸 280×280</p>
                 </div>
