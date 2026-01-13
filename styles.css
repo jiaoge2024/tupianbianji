@@ -245,6 +245,8 @@ input[type="range"]::-webkit-slider-thumb {
 /* Sidebar - Frosted Glass */
 .sidebar {
     width: 250px;
+    min-width: 180px;
+    max-width: 500px;
     background: var(--bg-sidebar);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
@@ -252,6 +254,41 @@ input[type="range"]::-webkit-slider-thumb {
     display: flex;
     flex-direction: column;
     height: 100%;
+}
+
+/* Resizer - 可拖拽分隔线 */
+.resizer {
+    width: 5px;
+    background: transparent;
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.resizer:hover,
+.resizer.resizing {
+    background: var(--accent-color);
+}
+
+.resizer::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.resizer:hover::after,
+.resizer.resizing::after {
+    opacity: 1;
 }
 
 .sidebar-content {

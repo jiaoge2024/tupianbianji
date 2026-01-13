@@ -56,7 +56,7 @@
 
         <main class="workspace">
             <!-- 左侧工具栏 -->
-            <aside class="sidebar">
+            <aside class="sidebar" id="sidebar">
                 <div class="sidebar-content">
                     <div class="tool-list">
                         <div class="tool-group">
@@ -82,11 +82,14 @@
                             <button class="tool-btn" data-tool="text">添加文本</button>
                             <button class="tool-btn" data-tool="image-watermark">添加图片</button>
                         </div>
+                        <div class="tool-group">
+                            <h3>插件工具</h3>
+                            <button class="tool-btn" data-tool="icon-gen">插件图标</button>
+                        </div>
                     </div>
 
                     <!-- 动态属性面板 -->
                     <div id="property-panel" class="property-panel">
-                        <div class="panel-header">工具属性</div>
                         <div class="panel-content" id="panel-content">
                             <!-- 这里将由 JS 根据选中的工具动态注入内容 -->
                             <p class="empty-hint">选择已添加的内容进行调整</p>
@@ -94,6 +97,9 @@
                     </div>
                 </div>
             </aside>
+
+            <!-- 分隔线 - 可拖拽 -->
+            <div class="resizer" id="resizer"></div>
 
             <!-- 中心画布区域 -->
             <section class="canvas-area" id="drop-zone">

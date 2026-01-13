@@ -96,6 +96,9 @@ const toolManager = {
             case 'arrow':
                 this.addArrow();
                 break;
+            case 'icon-gen':
+                this.initIconGenerator();
+                break;
         }
     },
 
@@ -1081,63 +1084,295 @@ const toolManager = {
         canvas.setActiveObject(path);
     },
 
-    applyFilters(brightness, contrast, saturation) {
-        // 获取背景图片（第一个对象）
-        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
-        if (!baseImage) return;
+    // ========== 图标生成器（独立画布系统）==========
+    iconCanvas: null,
+    iconGenState: null,
 
-        // 清除现有滤镜
-        baseImage.filters = [];
-
-        // 添加亮度滤镜 (范围: -1 到 1, 0为原始)
-        if (brightness !== 0) {
-            baseImage.filters.push(new fabric.Image.filters.Brightness({
-                brightness: brightness
-            }));
-        }
-
-        // 添加对比度滤镜 (范围: -1 到 1, 0为原始)
-        if (contrast !== 0) {
-            baseImage.filters.push(new fabric.Image.filters.Contrast({
-                contrast: contrast
-            }));
-        }
-
-        // 添加饱和度滤镜 (范围: -1 到 1, 0为原始)
-        if (saturation !== 0) {
-            baseImage.filters.push(new fabric.Image.filters.Saturation({
-                saturation: saturation
-            }));
-        }
-
-        // 应用滤镜
-        baseImage.applyFilters();
-        canvas.renderAll();
+    initIconGenerator() {
+        this.updatePropertyPanel('icon-gen');
+        // 确保独立画布已初始化
+        this.initIconCanvas();
     },
 
-    resetFilters() {
-        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
-        if (!baseImage) return;
+    // 初始化独立的图标画布
+    initIconCanvas() {
+        if (this.iconCanvas) return;
 
-        baseImage.filters = [];
-        baseImage.applyFilters();
-        canvas.renderAll();
+        const canvasEl = document.getElementById('icon-preview-canvas');
+        if (!canvasEl) return;
 
-        // 重置滑块
-        document.getElementById('brightness-slider').value = 0;
-        document.getElementById('contrast-slider').value = 0;
-        document.getElementById('saturation-slider').value = 0;
-        document.getElementById('brightness-value').textContent = '0';
-        document.getElementById('contrast-value').textContent = '0';
-        document.getElementById('saturation-value').textContent = '0';
+        this.iconCanvas = new fabric.Canvas('icon-preview-canvas', {
+            backgroundColor: '#2d2d2d',
+            preserveObjectStacking: true,
+            selection: true
+        });
+
+        this.iconCanvas.setDimensions({ width: 280, height: 280 });
+        console.log('[图标生成器] 独立画布已初始化');
     },
 
-    updatePropertyPanel(tool) {
-        const panel = document.getElementById('panel-content');
-        panel.innerHTML = '';
+    // 上传图片并裁剪成图标
+    uploadAndCropIcon() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
 
-        if (tool === 'crop') {
-            panel.innerHTML = `
+            const reader = new FileReader();
+            reader.onload = (f) => {
+                const dataUrl = f.target.result;
+                this.loadIconToPreview(dataUrl, 'upload');
+            };
+            reader.readAsDataURL(file);
+        };
+        input.click();
+    },
+
+    // 加载图标到预览画布
+    loadIconToPreview(imageUrl, mode) {
+        if (!this.iconCanvas) {
+            this.initIconCanvas();
+        }
+
+        const keywordDisplay = document.getElementById('icon-keywords');
+        this.iconCanvas.clear();
+
+        fabric.Image.fromURL(imageUrl, (img) => {
+            if (!img) {
+                alert('图片加载失败');
+                return;
+            }
+
+            console.log('[图标生成器] 图片加载成功:', img.width, 'x', img.height);
+
+            const canvasSize = 280;
+            const scale = Math.min(canvasSize / img.width, canvasSize / img.height);
+            img.scale(scale);
+
+            this.iconCanvas.setDimensions({ width: canvasSize, height: canvasSize });
+            this.iconCanvas.add(img);
+            this.iconCanvas.centerObject(img);
+            this.iconCanvas.setActiveObject(img);
+            this.iconCanvas.renderAll();
+
+            this.iconGenState = { mode, imageUrl };
+            if (keywordDisplay) {
+                keywordDisplay.textContent = '✅ 图标已加载到预览区';
+            }
+        });
+    },
+
+    // AI生成图标 - 集成 Gemini 2.5 API（使用独立画布）
+    async generateIconWithAI(description) {
+        if (!description || description.trim().length < 2) {
+            alert('请输入图标描述');
+            return;
+        }
+
+        const btn = document.getElementById('btn-generate-icon');
+        const originalText = btn.textContent;
+        const keywordDisplay = document.getElementById('icon-keywords');
+
+        btn.disabled = true;
+        btn.textContent = '☕ AI 生图中...';
+
+        try {
+            console.log('[AI图标] 开始生成，描述:', description);
+
+            // 构建提示词
+            const prompt = `为浏览器插件生成一个现代、简洁的 1:1 比例图标。
+设计要求：
+- 核心功能：${description}
+- 风格：极简主义，可识别性强
+- 背景：纯白色背景
+- 构图：主体元素居中，避免微小文字`;
+
+            // 调用 API
+            const apiKey = 'sk-FlptvyXGnbpmX3vwQg4syMxCTxxvgoI593jvc9e8sP7NERUB';
+            const apiUrl = 'https://yunwu.ai/v1beta/models/gemini-2.5-flash-image-preview:generateContent';
+
+            console.log('[AI图标] 发送 API 请求...');
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }]
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[AI图标] API 请求失败:', response.status, errorText);
+                throw new Error(`API 请求失败 (${response.status})`);
+            }
+
+            const data = await response.json();
+            console.log('[AI图标] API 响应:', data);
+
+            // 解析图像数据
+            let imageData = null;
+            const parts = data?.candidates?.[0]?.content?.parts || [];
+
+            for (const part of parts) {
+                if (part.inlineData) {
+                    imageData = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                    break;
+                }
+                if (part.text) {
+                    const base64Match = part.text.match(/data:image\/[a-zA-Z]*;base64,[^"'\s\)]*/);
+                    if (base64Match) {
+                        imageData = base64Match[0];
+                        break;
+                    }
+                    if (part.text.length > 1000 && !part.text.includes(' ')) {
+                        imageData = `data:image/png;base64,${part.text.trim()}`;
+                        break;
+                    }
+                }
+            }
+
+            if (!imageData) {
+                console.error('[AI图标] 未找到图像数据，响应:', data);
+                throw new Error('API 未返回有效的图像数据');
+            }
+
+            console.log('[AI图标] 图像数据已提取，长度:', imageData.length);
+            btn.textContent = '🎨 渲染中...';
+
+            // 加载到独立预览画布
+            this.loadIconToPreview(imageData, 'ai');
+
+            if (keywordDisplay) {
+                keywordDisplay.textContent = '✨ 图标生成成功！可调整后下载';
+            }
+
+        } catch (error) {
+            console.error('[AI图标] 生成失败:', error);
+            alert(`生图失败: ${error.message}`);
+            if (keywordDisplay) {
+                keywordDisplay.textContent = `❌ 失败: ${error.message}`;
+            }
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    },
+
+    // 打包下载图标包（使用独立画布）
+    async downloadIcons() {
+        if (!this.iconCanvas || this.iconCanvas.getObjects().length === 0) {
+            alert('请先生成或上传图标');
+            return;
+        }
+
+        const btn = document.getElementById('btn-download-icons');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '打包中...';
+
+        try {
+            const sizes = [16, 32, 48, 128];
+            const zip = new JSZip();
+            const imgFolder = zip.folder('extension-icons');
+
+            for (const size of sizes) {
+                const dataUrl = this.iconCanvas.toDataURL({
+                    format: 'png',
+                    multiplier: size / 280  // iconCanvas 宽度是 280
+                });
+                const base64Data = dataUrl.replace(/^data:image\/(png|jpg);base64,/, '');
+                imgFolder.file(`icon-${size}x${size}.png`, base64Data, { base64: true });
+            }
+
+            // 生成 manifest 片段
+            const manifestContent = {
+                icons: {
+                    "16": "icon-16x16.png",
+                    "32": "icon-32x32.png",
+                    "48": "icon-48x48.png",
+                    "128": "icon-128x128.png"
+                }
+            };
+            imgFolder.file('manifest-icons.json', JSON.stringify(manifestContent, null, 2));
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = 'extension-icons.zip';
+            link.click();
+
+            alert('✅ 图标打包下载成功！');
+        } catch (error) {
+            console.error('[图标生成器] 打包失败:', error);
+            alert('下载失败，请重试');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    },
+
+            applyFilters(brightness, contrast, saturation) {
+                // 获取背景图片（第一个对象）
+                const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+                if (!baseImage) return;
+
+                // 清除现有滤镜
+                baseImage.filters = [];
+
+                // 添加亮度滤镜 (范围: -1 到 1, 0为原始)
+                if (brightness !== 0) {
+                    baseImage.filters.push(new fabric.Image.filters.Brightness({
+                        brightness: brightness
+                    }));
+                }
+
+                // 添加对比度滤镜 (范围: -1 到 1, 0为原始)
+                if (contrast !== 0) {
+                    baseImage.filters.push(new fabric.Image.filters.Contrast({
+                        contrast: contrast
+                    }));
+                }
+
+                // 添加饱和度滤镜 (范围: -1 到 1, 0为原始)
+                if (saturation !== 0) {
+                    baseImage.filters.push(new fabric.Image.filters.Saturation({
+                        saturation: saturation
+                    }));
+                }
+
+                // 应用滤镜
+                baseImage.applyFilters();
+                canvas.renderAll();
+            },
+
+            resetFilters() {
+                const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+                if (!baseImage) return;
+
+                baseImage.filters = [];
+                baseImage.applyFilters();
+                canvas.renderAll();
+
+                // 重置滑块
+                document.getElementById('brightness-slider').value = 0;
+                document.getElementById('contrast-slider').value = 0;
+                document.getElementById('saturation-slider').value = 0;
+                document.getElementById('brightness-value').textContent = '0';
+                document.getElementById('contrast-value').textContent = '0';
+                document.getElementById('saturation-value').textContent = '0';
+            },
+
+            updatePropertyPanel(tool) {
+                const panel = document.getElementById('panel-content');
+                panel.innerHTML = '';
+
+                if (tool === 'crop') {
+                    panel.innerHTML = `
                 <div class="prop-item">
                     <label>裁剪比例</label>
                     <select id="crop-ratio" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
@@ -1150,28 +1385,27 @@ const toolManager = {
                     </select>
                 </div>
                 <button id="apply-crop" class="primary-btn" style="width:100%; margin-top:10px;">应用裁剪</button>
-            `;
+`;
 
-            document.getElementById('crop-ratio').addEventListener('change', (e) => {
-                this.setCropRatio(e.target.value);
-            });
+                    document.getElementById('crop-ratio').addEventListener('change', (e) => {
+                        this.setCropRatio(e.target.value);
+                    });
 
-            document.getElementById('apply-crop').addEventListener('click', () => {
-                this.applyCrop();
-            });
-        } else if (tool === 'mosaic') {
-            panel.innerHTML = `
-                <div class="prop-item">
+                    document.getElementById('apply-crop').addEventListener('click', () => {
+                        this.applyCrop();
+                    });
+                } else if (tool === 'mosaic') {
+                    panel.innerHTML = `
+    <div class="prop-item">
                     <label>笔刷大小</label>
                     <input type="range" min="5" max="100" value="20" id="brush-size">
                 </div>
-            `;
-            document.getElementById('brush-size').addEventListener('input', (e) => {
-                canvas.freeDrawingBrush.width = parseInt(e.target.value);
-            });
-        } else if (tool === 'grid-slice') {
-            panel.innerHTML = `
-                <div class="panel-header">网格切图</div>
+`;
+                    document.getElementById('brush-size').addEventListener('input', (e) => {
+                        canvas.freeDrawingBrush.width = parseInt(e.target.value);
+                    });
+                } else if (tool === 'grid-slice') {
+                    panel.innerHTML = `
                 <div class="prop-item">
                     <label>行数 (Rows)</label>
                     <input type="number" id="grid-rows" value="3" min="1" max="20" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
@@ -1182,21 +1416,20 @@ const toolManager = {
                 </div>
                 <p style="font-size: 12px; color: #888; margin-top: 10px;">将图片平均切割并打包成 ZIP 下载。</p>
                 <button id="apply-grid-slice" class="primary-btn" style="width:100%; margin-top:10px;">开始切图并下载</button>
-            `;
+`;
 
-            document.getElementById('apply-grid-slice').addEventListener('click', () => {
-                const rows = parseInt(document.getElementById('grid-rows').value);
-                const cols = parseInt(document.getElementById('grid-cols').value);
-                this.applyGridSlice(rows, cols);
-            });
-        } else if (tool === 'id-photo') {
-            const templates = this._getIDPhotoTemplates();
-            const sizeOptions = Object.entries(templates)
-                .map(([key, t]) => `<option value="${key}">${t.label}</option>`)
-                .join('');
+                    document.getElementById('apply-grid-slice').addEventListener('click', () => {
+                        const rows = parseInt(document.getElementById('grid-rows').value);
+                        const cols = parseInt(document.getElementById('grid-cols').value);
+                        this.applyGridSlice(rows, cols);
+                    });
+                } else if (tool === 'id-photo') {
+                    const templates = this._getIDPhotoTemplates();
+                    const sizeOptions = Object.entries(templates)
+                        .map(([key, t]) => `<option value="${key}">${t.label}</option>`)
+                        .join('');
 
-            panel.innerHTML = `
-                <div class="panel-header">证件照</div>
+                    panel.innerHTML = `
                 <div class="prop-item">
                     <label>底色</label>
                     <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:10px;">
@@ -1213,32 +1446,31 @@ const toolManager = {
                 </div>
                 <button id="btn-generate-id-photo" class="primary-btn" style="width:100%; margin-top:10px;">一键生成证件照</button>
                 <p style="font-size:11px; color:#888; margin-top:10px;">生成后：点击人像，可拖拽/缩放调整。</p>
-            `;
+`;
 
-            let selectedColor = '#ffffff';
-            const colorOpts = panel.querySelectorAll('.color-opt');
-            colorOpts.forEach(opt => {
-                opt.addEventListener('click', () => {
-                    colorOpts.forEach(o => o.style.outline = 'none');
-                    opt.style.outline = '2px solid #3b82f6';
-                    selectedColor = opt.dataset.color;
-                    this.idPhotoState = null;
-                });
-            });
-            if (colorOpts[0]) colorOpts[0].style.outline = '2px solid #3b82f6';
+                    let selectedColor = '#ffffff';
+                    const colorOpts = panel.querySelectorAll('.color-opt');
+                    colorOpts.forEach(opt => {
+                        opt.addEventListener('click', () => {
+                            colorOpts.forEach(o => o.style.outline = 'none');
+                            opt.style.outline = '2px solid #3b82f6';
+                            selectedColor = opt.dataset.color;
+                            this.idPhotoState = null;
+                        });
+                    });
+                    if (colorOpts[0]) colorOpts[0].style.outline = '2px solid #3b82f6';
 
-            const sizeSelect = document.getElementById('id-photo-size');
-            sizeSelect.addEventListener('change', () => {
-                this.idPhotoState = null;
-            });
+                    const sizeSelect = document.getElementById('id-photo-size');
+                    sizeSelect.addEventListener('change', () => {
+                        this.idPhotoState = null;
+                    });
 
-            document.getElementById('btn-generate-id-photo').addEventListener('click', () => {
-                const sizeKey = document.getElementById('id-photo-size').value;
-                this.generateIDPhoto(sizeKey, selectedColor, 100);
-            });
-        } else if (tool === 'ai-background') {
-            panel.innerHTML = `
-                <div class="panel-header">AI 背景替换</div>
+                    document.getElementById('btn-generate-id-photo').addEventListener('click', () => {
+                        const sizeKey = document.getElementById('id-photo-size').value;
+                        this.generateIDPhoto(sizeKey, selectedColor, 100);
+                    });
+                } else if (tool === 'ai-background') {
+                    panel.innerHTML = `
                 <div class="prop-item">
                     <label>选择背景颜色</label>
                     <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:8px; margin-bottom:10px;">
@@ -1256,43 +1488,43 @@ const toolManager = {
                 <button id="btn-apply-ai" class="primary-btn" style="width:100%; margin-top:10px;">立即替换</button>
                 <p style="font-size:11px; color:#888; margin-top:10px;">替换后：点击人像，可拖拽/缩放调整。</p>
                 <p style="font-size:11px; color:#888; margin-top:10px;">注：首次加载 AI 模型需约 10-20 秒，请保持网络通畅。</p>
-            `;
+`;
 
-            let selectedColor = '#ffffff';
-            const colorOpts = panel.querySelectorAll('.color-opt');
-            colorOpts.forEach(opt => {
-                opt.style.height = '24px';
-                opt.style.cursor = 'pointer';
-                opt.style.borderRadius = '4px';
-                opt.addEventListener('click', () => {
-                    colorOpts.forEach(o => o.style.outline = 'none');
-                    opt.style.outline = '2px solid #3b82f6';
-                    selectedColor = opt.dataset.color;
-                    document.getElementById('ai-custom-color').value = selectedColor;
-                });
-            });
+                    let selectedColor = '#ffffff';
+                    const colorOpts = panel.querySelectorAll('.color-opt');
+                    colorOpts.forEach(opt => {
+                        opt.style.height = '24px';
+                        opt.style.cursor = 'pointer';
+                        opt.style.borderRadius = '4px';
+                        opt.addEventListener('click', () => {
+                            colorOpts.forEach(o => o.style.outline = 'none');
+                            opt.style.outline = '2px solid #3b82f6';
+                            selectedColor = opt.dataset.color;
+                            document.getElementById('ai-custom-color').value = selectedColor;
+                        });
+                    });
 
-            document.getElementById('btn-apply-ai').addEventListener('click', () => {
-                const customColor = document.getElementById('ai-custom-color').value;
-                const fileInput = document.getElementById('ai-bg-upload');
+                    document.getElementById('btn-apply-ai').addEventListener('click', () => {
+                        const customColor = document.getElementById('ai-custom-color').value;
+                        const fileInput = document.getElementById('ai-bg-upload');
 
-                if (fileInput.files && fileInput.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const img = new Image();
-                        img.onload = () => this.applyAiBackground('image', img, 100);
-                        img.src = e.target.result;
-                    };
-                    reader.readAsDataURL(fileInput.files[0]);
-                } else {
-                    this.applyAiBackground('color', customColor || selectedColor, 100);
-                }
-            });
-        } else if (tool === 'resize') {
-            const img = canvas.getObjects()[0];
-            if (!img) return;
+                        if (fileInput.files && fileInput.files[0]) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                const img = new Image();
+                                img.onload = () => this.applyAiBackground('image', img, 100);
+                                img.src = e.target.result;
+                            };
+                            reader.readAsDataURL(fileInput.files[0]);
+                        } else {
+                            this.applyAiBackground('color', customColor || selectedColor, 100);
+                        }
+                    });
+                } else if (tool === 'resize') {
+                    const img = canvas.getObjects()[0];
+                    if (!img) return;
 
-            panel.innerHTML = `
+                    panel.innerHTML = `
                 <div class="prop-item">
                     <label>宽度 (px)</label>
                     <input type="number" id="resize-w" value="${Math.round(canvas.width)}">
@@ -1302,29 +1534,28 @@ const toolManager = {
                     <input type="number" id="resize-h" value="${Math.round(canvas.height)}">
                 </div>
                 <button id="apply-resize" class="primary-btn" style="width:100%; margin-top:10px;">应用修改</button>
-            `;
+`;
 
-            document.getElementById('apply-resize').addEventListener('click', () => {
-                const w = parseInt(document.getElementById('resize-w').value);
-                const h = parseInt(document.getElementById('resize-h').value);
+                    document.getElementById('apply-resize').addEventListener('click', () => {
+                        const w = parseInt(document.getElementById('resize-w').value);
+                        const h = parseInt(document.getElementById('resize-h').value);
 
-                const scaleX = w / canvas.width;
-                const scaleY = h / canvas.height;
+                        const scaleX = w / canvas.width;
+                        const scaleY = h / canvas.height;
 
-                canvas.setDimensions({ width: w, height: h });
-                canvas.forEachObject(obj => {
-                    obj.scaleX *= scaleX;
-                    obj.scaleY *= scaleY;
-                    obj.left *= scaleX;
-                    obj.top *= scaleY;
-                    obj.setCoords();
-                });
-                canvas.renderAll();
-                historyManager.push(canvas);
-            });
-        } else if (tool === 'rotate') {
-            panel.innerHTML = `
-                <div class="panel-header">旋转图片</div>
+                        canvas.setDimensions({ width: w, height: h });
+                        canvas.forEachObject(obj => {
+                            obj.scaleX *= scaleX;
+                            obj.scaleY *= scaleY;
+                            obj.left *= scaleX;
+                            obj.top *= scaleY;
+                            obj.setCoords();
+                        });
+                        canvas.renderAll();
+                        historyManager.push(canvas);
+                    });
+                } else if (tool === 'rotate') {
+                    panel.innerHTML = `
                 <div class="prop-item">
                     <label>顺时针旋转</label>
                     <button id="rotate-90" class="secondary-btn" style="width:100%; margin-bottom:8px;">↻ 90°</button>
@@ -1335,26 +1566,25 @@ const toolManager = {
                     <button id="rotate-minus-90" class="secondary-btn" style="width:100%; margin-bottom:8px;">↺ 90°</button>
                     <button id="rotate-minus-180" class="secondary-btn" style="width:100%;">↺ 180°</button>
                 </div>
-            `;
+`;
 
-            document.getElementById('rotate-90').addEventListener('click', () => {
-                this.rotateImage(90);
-            });
+                    document.getElementById('rotate-90').addEventListener('click', () => {
+                        this.rotateImage(90);
+                    });
 
-            document.getElementById('rotate-180').addEventListener('click', () => {
-                this.rotateImage(180);
-            });
+                    document.getElementById('rotate-180').addEventListener('click', () => {
+                        this.rotateImage(180);
+                    });
 
-            document.getElementById('rotate-minus-90').addEventListener('click', () => {
-                this.rotateImage(-90);
-            });
+                    document.getElementById('rotate-minus-90').addEventListener('click', () => {
+                        this.rotateImage(-90);
+                    });
 
-            document.getElementById('rotate-minus-180').addEventListener('click', () => {
-                this.rotateImage(-180);
-            });
-        } else if (tool === 'filter') {
-            panel.innerHTML = `
-                <div class="panel-header">图片滤镜</div>
+                    document.getElementById('rotate-minus-180').addEventListener('click', () => {
+                        this.rotateImage(-180);
+                    });
+                } else if (tool === 'filter') {
+                    panel.innerHTML = `
                 <div class="prop-item">
                     <label>亮度</label>
                     <input type="range" min="-100" max="100" value="0" id="brightness-slider">
@@ -1371,33 +1601,81 @@ const toolManager = {
                     <span id="saturation-value" style="color:#3b82f6;">0</span>
                 </div>
                 <button id="reset-filters" class="secondary-btn" style="width:100%; margin-top:10px;">重置滤镜</button>
-            `;
+`;
 
-            const updateFilters = () => {
-                const brightness = parseInt(document.getElementById('brightness-slider').value) / 100;
-                const contrast = parseInt(document.getElementById('contrast-slider').value) / 100;
-                const saturation = parseInt(document.getElementById('saturation-slider').value) / 100;
+                    const updateFilters = () => {
+                        const brightness = parseInt(document.getElementById('brightness-slider').value) / 100;
+                        const contrast = parseInt(document.getElementById('contrast-slider').value) / 100;
+                        const saturation = parseInt(document.getElementById('saturation-slider').value) / 100;
 
-                document.getElementById('brightness-value').textContent = Math.round(brightness * 100);
-                document.getElementById('contrast-value').textContent = Math.round(contrast * 100);
-                document.getElementById('saturation-value').textContent = Math.round(saturation * 100);
+                        document.getElementById('brightness-value').textContent = Math.round(brightness * 100);
+                        document.getElementById('contrast-value').textContent = Math.round(contrast * 100);
+                        document.getElementById('saturation-value').textContent = Math.round(saturation * 100);
 
-                this.applyFilters(brightness, contrast, saturation);
-            };
+                        this.applyFilters(brightness, contrast, saturation);
+                    };
 
-            document.getElementById('brightness-slider').addEventListener('input', updateFilters);
-            document.getElementById('contrast-slider').addEventListener('input', updateFilters);
-            document.getElementById('saturation-slider').addEventListener('input', updateFilters);
+                    document.getElementById('brightness-slider').addEventListener('input', updateFilters);
+                    document.getElementById('contrast-slider').addEventListener('input', updateFilters);
+                    document.getElementById('saturation-slider').addEventListener('input', updateFilters);
 
-            document.getElementById('reset-filters').addEventListener('click', () => {
-                this.resetFilters();
-            });
-        } else {
-            // 检查是否选中了文字对象
-            const activeObj = canvas.getActiveObject();
-            if (activeObj && activeObj.type === 'i-text') {
-                panel.innerHTML = `
-                    <div class="panel-header">文字属性</div>
+                    document.getElementById('reset-filters').addEventListener('click', () => {
+                        this.resetFilters();
+                    });
+                } else if (tool === 'icon-gen') {
+                    panel.innerHTML = `
+                <!-- 独立的预览画布区域 -->
+                <div class="prop-item">
+                    <label>图标预览</label>
+                    <div id="icon-preview-wrapper" style="display:flex; justify-content:center; align-items:center; background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:10px; margin-top:5px;">
+                        <canvas id="icon-preview-canvas"></canvas>
+                    </div>
+                    <p style="font-size:10px; color:#666; margin-top:5px; text-align:center;">预览尺寸 280×280</p>
+                </div>
+
+                <div style="border-top:1px solid #333; margin:15px 0;"></div>
+
+                <div class="prop-item">
+                    <label>方式一：上传图片</label>
+                    <button id="upload-icon" class="secondary-btn" style="width:100%; margin-top:5px;">📁 上传图片裁剪</button>
+                </div>
+
+                <div style="border-top:1px solid #333; margin:15px 0;"></div>
+
+                <div class="prop-item">
+                    <label>方式二：AI 生成图标</label>
+                    <textarea id="ai-description" placeholder="描述你的插件功能，例如：&#10;'极简的图片编辑器，支持裁剪、旋转、滤镜等功能'"
+                        style="width:100%; height:80px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px; padding:8px; font-size:12px; resize:vertical; margin-top:5px;"></textarea>
+                    <p id="icon-keywords" style="font-size:11px; color:#3b82f6; margin-top:5px;"></p>
+                    <button id="btn-generate-icon" class="primary-btn" style="width:100%; margin-top:8px;">✨ AI 生成图标</button>
+                </div>
+
+                <div style="border-top:1px solid #333; margin:15px 0;"></div>
+
+                <div class="prop-item">
+                    <label style="color:#34a853;">一键打包下载</label>
+                    <p style="font-size:11px; color:#888; margin-top:5px;">支持尺寸：16×16, 32×32, 48×48, 128×128</p>
+                    <button id="btn-download-icons" class="primary-btn" style="width:100%; margin-top:8px; background:#34a853;">📦 打包下载图标包</button>
+                </div>
+`;
+
+                    document.getElementById('upload-icon').addEventListener('click', () => {
+                        this.uploadAndCropIcon();
+                    });
+
+                    document.getElementById('btn-generate-icon').addEventListener('click', () => {
+                        const description = document.getElementById('ai-description').value;
+                        this.generateIconWithAI(description);
+                    });
+
+                    document.getElementById('btn-download-icons').addEventListener('click', () => {
+                        this.downloadIcons();
+                    });
+                } else {
+                    // 检查是否选中了文字对象
+                    const activeObj = canvas.getActiveObject();
+                    if (activeObj && activeObj.type === 'i-text') {
+                        panel.innerHTML = `
                     <div class="prop-item">
                         <label>字体颜色</label>
                         <input type="color" id="text-color" value="${this.toHexColor(activeObj.fill)}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
@@ -1412,33 +1690,32 @@ const toolManager = {
                         <input type="range" min="0" max="100" value="${activeObj.opacity * 100}" id="text-opacity">
                         <span id="text-opacity-value" style="color:#3b82f6;">${Math.round(activeObj.opacity * 100)}%</span>
                     </div>
-                `;
+`;
 
-                // 颜色选择
-                document.getElementById('text-color').addEventListener('input', (e) => {
-                    activeObj.set('fill', e.target.value);
-                    canvas.renderAll();
-                });
+                        // 颜色选择
+                        document.getElementById('text-color').addEventListener('input', (e) => {
+                            activeObj.set('fill', e.target.value);
+                            canvas.renderAll();
+                        });
 
-                // 字体大小
-                document.getElementById('text-size').addEventListener('input', (e) => {
-                    const size = parseInt(e.target.value);
-                    activeObj.set('fontSize', size);
-                    document.getElementById('text-size-value').textContent = size + 'px';
-                    canvas.renderAll();
-                });
+                        // 字体大小
+                        document.getElementById('text-size').addEventListener('input', (e) => {
+                            const size = parseInt(e.target.value);
+                            activeObj.set('fontSize', size);
+                            document.getElementById('text-size-value').textContent = size + 'px';
+                            canvas.renderAll();
+                        });
 
-                // 透明度
-                document.getElementById('text-opacity').addEventListener('input', (e) => {
-                    const opacity = parseInt(e.target.value) / 100;
-                    activeObj.set('opacity', opacity);
-                    document.getElementById('text-opacity-value').textContent = Math.round(opacity * 100) + '%';
-                    canvas.renderAll();
-                });
-            } else if (activeObj && activeObj.type === 'image' && activeObj !== canvas.getObjects()[0]) {
-                // 图片水印的属性控制
-                panel.innerHTML = `
-                    <div class="panel-header">水印属性</div>
+                        // 透明度
+                        document.getElementById('text-opacity').addEventListener('input', (e) => {
+                            const opacity = parseInt(e.target.value) / 100;
+                            activeObj.set('opacity', opacity);
+                            document.getElementById('text-opacity-value').textContent = Math.round(opacity * 100) + '%';
+                            canvas.renderAll();
+                        });
+                    } else if (activeObj && activeObj.type === 'image' && activeObj !== canvas.getObjects()[0]) {
+                        // 图片水印的属性控制
+                        panel.innerHTML = `
                     <div class="prop-item">
                         <label>透明度</label>
                         <input type="range" min="0" max="100" value="${activeObj.opacity * 100}" id="watermark-opacity">
@@ -1449,25 +1726,24 @@ const toolManager = {
                         <input type="range" min="10" max="200" value="${activeObj.scaleX * 100}" id="watermark-scale">
                         <span id="watermark-scale-value" style="color:#3b82f6;">${Math.round(activeObj.scaleX * 100)}%</span>
                     </div>
-                `;
+`;
 
-                document.getElementById('watermark-opacity').addEventListener('input', (e) => {
-                    const opacity = parseInt(e.target.value) / 100;
-                    activeObj.set('opacity', opacity);
-                    document.getElementById('watermark-opacity-value').textContent = Math.round(opacity * 100) + '%';
-                    canvas.renderAll();
-                });
+                        document.getElementById('watermark-opacity').addEventListener('input', (e) => {
+                            const opacity = parseInt(e.target.value) / 100;
+                            activeObj.set('opacity', opacity);
+                            document.getElementById('watermark-opacity-value').textContent = Math.round(opacity * 100) + '%';
+                            canvas.renderAll();
+                        });
 
-                document.getElementById('watermark-scale').addEventListener('input', (e) => {
-                    const scale = parseInt(e.target.value) / 100;
-                    activeObj.set({ scaleX: scale, scaleY: scale });
-                    document.getElementById('watermark-scale-value').textContent = Math.round(scale * 100) + '%';
-                    canvas.renderAll();
-                });
-            } else if (activeObj && (activeObj.type === 'rect' || activeObj.type === 'circle' || activeObj.type === 'path')) {
-                // 图图标注的属性控制
-                panel.innerHTML = `
-                    <div class="panel-header">标注属性</div>
+                        document.getElementById('watermark-scale').addEventListener('input', (e) => {
+                            const scale = parseInt(e.target.value) / 100;
+                            activeObj.set({ scaleX: scale, scaleY: scale });
+                            document.getElementById('watermark-scale-value').textContent = Math.round(scale * 100) + '%';
+                            canvas.renderAll();
+                        });
+                    } else if (activeObj && (activeObj.type === 'rect' || activeObj.type === 'circle' || activeObj.type === 'path')) {
+                        // 图图标注的属性控制
+                        panel.innerHTML = `
                     <div class="prop-item">
                         <label>线条颜色</label>
                         <input type="color" id="shape-stroke" value="${this.toHexColor(activeObj.stroke)}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
@@ -1477,22 +1753,22 @@ const toolManager = {
                         <input type="range" min="1" max="20" value="${activeObj.strokeWidth}" id="shape-width">
                         <span id="shape-width-value" style="color:#3b82f6;">${activeObj.strokeWidth}px</span>
                     </div>
-                `;
+`;
 
-                document.getElementById('shape-stroke').addEventListener('input', (e) => {
-                    activeObj.set('stroke', e.target.value);
-                    canvas.renderAll();
-                });
+                        document.getElementById('shape-stroke').addEventListener('input', (e) => {
+                            activeObj.set('stroke', e.target.value);
+                            canvas.renderAll();
+                        });
 
-                document.getElementById('shape-width').addEventListener('input', (e) => {
-                    const width = parseInt(e.target.value);
-                    activeObj.set('strokeWidth', width);
-                    document.getElementById('shape-width-value').textContent = width + 'px';
-                    canvas.renderAll();
-                });
-            } else {
-                panel.innerHTML = '<p class="empty-hint">选中元素以编辑属性</p>';
+                        document.getElementById('shape-width').addEventListener('input', (e) => {
+                            const width = parseInt(e.target.value);
+                            activeObj.set('strokeWidth', width);
+                            document.getElementById('shape-width-value').textContent = width + 'px';
+                            canvas.renderAll();
+                        });
+                    } else {
+                        panel.innerHTML = '<p class="empty-hint">选中元素以编辑属性</p>';
+                    }
+                }
             }
-        }
-    }
-};
+        };

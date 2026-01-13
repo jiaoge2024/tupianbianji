@@ -264,3 +264,48 @@ if (qrModal) {
     });
 }
 
+// ==================== Sidebar Resizer Logic ====================
+const sidebar = document.getElementById('sidebar');
+const resizer = document.getElementById('resizer');
+let isResizing = false;
+let lastDownX = 0;
+
+if (resizer) {
+    resizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        lastDownX = e.clientX;
+        resizer.classList.add('resizing');
+
+        // 防止拖拽时选中文本
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+    });
+}
+
+document.addEventListener('mousemove', (e) => {
+    if (!isResizing) return;
+
+    const offsetX = e.clientX - lastDownX;
+    const newWidth = sidebar.offsetWidth + offsetX;
+
+    // 限制最小和最大宽度
+    const minWidth = 180;
+    const maxWidth = 500;
+
+    if (newWidth >= minWidth && newWidth <= maxWidth) {
+        sidebar.style.width = newWidth + 'px';
+        lastDownX = e.clientX;
+    }
+});
+
+document.addEventListener('mouseup', () => {
+    if (isResizing) {
+        isResizing = false;
+        if (resizer) {
+            resizer.classList.remove('resizing');
+        }
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+    }
+});
+
