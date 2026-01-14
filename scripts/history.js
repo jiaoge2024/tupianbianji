@@ -11,14 +11,20 @@ const historyManager = {
     push(canvas) {
         if (this.isProcessing) return;
 
-        const json = JSON.stringify(canvas.toJSON());
+        // 保存画布内容和尺寸
+        const state = {
+            json: canvas.toJSON(),
+            width: canvas.width,
+            height: canvas.height
+        };
+        const stateStr = JSON.stringify(state);
 
         // If we are in the middle of history, clear forward states
         if (this.index < this.stack.length - 1) {
             this.stack = this.stack.slice(0, this.index + 1);
         }
 
-        this.stack.push(json);
+        this.stack.push(stateStr);
         if (this.stack.length > this.limit) {
             this.stack.shift();
         } else {
@@ -45,8 +51,14 @@ const historyManager = {
     },
 
     loadState(canvas) {
-        const state = this.stack[this.index];
-        canvas.loadFromJSON(state, () => {
+        const stateStr = this.stack[this.index];
+        const state = JSON.parse(stateStr);
+
+        // 先恢复画布尺寸
+        canvas.setDimensions({ width: state.width, height: state.height });
+
+        // 再恢复画布内容
+        canvas.loadFromJSON(state.json, () => {
             canvas.renderAll();
             this.isProcessing = false;
             this.updateButtons();

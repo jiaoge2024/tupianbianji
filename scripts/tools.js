@@ -96,6 +96,9 @@ const toolManager = {
             case 'frame':
                 this.initFrame();
                 break;
+            case 'remove-watermark':
+                this.initRemoveWatermark();
+                break;
         }
     },
 
@@ -226,9 +229,9 @@ const toolManager = {
         this.cropOverlays = [topOverlay, bottomOverlay, leftOverlay, rightOverlay];
         this.cropOverlays.forEach(overlay => canvas.add(overlay));
 
-        // Create Grid Lines (3x3)
+        // Create Grid Lines (4x4)
         this.cropGridLines = [];
-        for (let i = 1; i <= 2; i++) {
+        for (let i = 1; i <= 3; i++) {
             // Vertical lines
             this.cropGridLines.push(new fabric.Line([0, 0, 0, 0], {
                 stroke: 'rgba(255, 255, 255, 0.5)', strokeWidth: 1, selectable: false, evented: false, excludeFromExport: true
@@ -324,15 +327,19 @@ const toolManager = {
                 left: finalLeft + finalWidth, top: finalTop, width: imgLeft + imgWidth - (finalLeft + finalWidth), height: finalHeight
             });
 
-            // Update Grid Lines
-            // V1 (33%)
-            this.cropGridLines[0].set({ x1: finalLeft + finalWidth / 3, y1: finalTop, x2: finalLeft + finalWidth / 3, y2: finalTop + finalHeight });
-            // H1 (33%)
-            this.cropGridLines[1].set({ x1: finalLeft, y1: finalTop + finalHeight / 3, x2: finalLeft + finalWidth, y2: finalTop + finalHeight / 3 });
-            // V2 (66%)
-            this.cropGridLines[2].set({ x1: finalLeft + (finalWidth * 2) / 3, y1: finalTop, x2: finalLeft + (finalWidth * 2) / 3, y2: finalTop + finalHeight });
-            // H2 (66%)
-            this.cropGridLines[3].set({ x1: finalLeft, y1: finalTop + (finalHeight * 2) / 3, x2: finalLeft + finalWidth, y2: finalTop + (finalHeight * 2) / 3 });
+            // Update Grid Lines (4x4 grid: 25%, 50%, 75%)
+            // V1 (25%)
+            this.cropGridLines[0].set({ x1: finalLeft + finalWidth * 0.25, y1: finalTop, x2: finalLeft + finalWidth * 0.25, y2: finalTop + finalHeight });
+            // H1 (25%)
+            this.cropGridLines[1].set({ x1: finalLeft, y1: finalTop + finalHeight * 0.25, x2: finalLeft + finalWidth, y2: finalTop + finalHeight * 0.25 });
+            // V2 (50%)
+            this.cropGridLines[2].set({ x1: finalLeft + finalWidth * 0.5, y1: finalTop, x2: finalLeft + finalWidth * 0.5, y2: finalTop + finalHeight });
+            // H2 (50%)
+            this.cropGridLines[3].set({ x1: finalLeft, y1: finalTop + finalHeight * 0.5, x2: finalLeft + finalWidth, y2: finalTop + finalHeight * 0.5 });
+            // V3 (75%)
+            this.cropGridLines[4].set({ x1: finalLeft + finalWidth * 0.75, y1: finalTop, x2: finalLeft + finalWidth * 0.75, y2: finalTop + finalHeight });
+            // H3 (75%)
+            this.cropGridLines[5].set({ x1: finalLeft, y1: finalTop + finalHeight * 0.75, x2: finalLeft + finalWidth, y2: finalTop + finalHeight * 0.75 });
 
 
             // 更新尺寸标签
@@ -1893,6 +1900,87 @@ ${description}
         ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
     },
 
+    // ========== 去水印功能（智能裁剪法）==========
+    initRemoveWatermark() {
+        this.updatePropertyPanel('remove-watermark');
+    },
+
+    applySmartCrop(position, cropPercent) {
+        // 获取当前图片
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) {
+            alert('请先加载图片');
+            return;
+        }
+
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = cropPercent / 100;
+
+        // 计算裁剪区域
+        let cropX = 0, cropY = 0, newWidth = imgWidth, newHeight = imgHeight;
+
+        switch (position) {
+            case 'top-left':
+                cropX = imgWidth * ratio;
+                cropY = imgHeight * ratio;
+                newWidth = imgWidth - cropX;
+                newHeight = imgHeight - cropY;
+                break;
+            case 'top-right':
+                cropX = 0;
+                cropY = imgHeight * ratio;
+                newWidth = imgWidth * (1 - ratio);
+                newHeight = imgHeight - cropY;
+                break;
+            case 'bottom-left':
+                cropX = imgWidth * ratio;
+                cropY = 0;
+                newWidth = imgWidth - cropX;
+                newHeight = imgHeight * (1 - ratio);
+                break;
+            case 'bottom-right':
+                cropX = 0;
+                cropY = 0;
+                newWidth = imgWidth * (1 - ratio);
+                newHeight = imgHeight * (1 - ratio);
+                break;
+        }
+
+        // 创建离屏画布进行裁剪
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = newWidth;
+        offscreenCanvas.height = newHeight;
+        const ctx = offscreenCanvas.getContext('2d');
+
+        // 导出当前画布内容
+        const dataUrl = canvas.toDataURL({ format: 'png' });
+        const img = new Image();
+
+        img.onload = () => {
+            // 根据位置进行裁剪
+            ctx.drawImage(img, cropX, cropY, newWidth, newHeight, 0, 0, newWidth, newHeight);
+
+            // 将裁剪结果加载回画布
+            const resultDataUrl = offscreenCanvas.toDataURL('image/png');
+            fabric.Image.fromURL(resultDataUrl, (newImg) => {
+                canvas.clear();
+                canvas.setDimensions({ width: newWidth, height: newHeight });
+                newImg.set({
+                    left: 0,
+                    top: 0,
+                    selectable: true,
+                    evented: true
+                });
+                canvas.add(newImg);
+                canvas.renderAll();
+                historyManager.push(canvas);
+                alert('✅ 水印已移除！');
+            });
+        };
+        img.src = dataUrl;
+    },
+
     updatePropertyPanel(tool) {
         const panel = document.getElementById('panel-content');
         panel.innerHTML = '';
@@ -2016,6 +2104,59 @@ ${description}
                         this.addArrow(strokeColor, strokeWidth, lineStyle);
                         break;
                 }
+            });
+        } else if (tool === 'remove-watermark') {
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label>水印位置</label>
+                    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; margin-top:8px;">
+                        <button class="wm-pos-btn" data-pos="top-left" style="padding:12px; background:#2d2d2d; border:2px solid #1a73e8; border-radius:6px; color:white; cursor:pointer; font-size:13px;">↖ 左上</button>
+                        <button class="wm-pos-btn" data-pos="top-right" style="padding:12px; background:#2d2d2d; border:2px solid transparent; border-radius:6px; color:white; cursor:pointer; font-size:13px;">↗ 右上</button>
+                        <button class="wm-pos-btn" data-pos="bottom-left" style="padding:12px; background:#2d2d2d; border:2px solid transparent; border-radius:6px; color:white; cursor:pointer; font-size:13px;">↙ 左下</button>
+                        <button class="wm-pos-btn" data-pos="bottom-right" style="padding:12px; background:#2d2d2d; border:2px solid transparent; border-radius:6px; color:white; cursor:pointer; font-size:13px;">↘ 右下</button>
+                    </div>
+                </div>
+                <div class="prop-item">
+                    <label>裁剪比例</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="range" min="2" max="30" value="10" id="crop-percent-slider" style="flex:1;">
+                        <input type="number" min="2" max="30" value="10" id="crop-percent-input" style="width:55px; padding:4px 6px; background:#2d2d2d; color:#1a73e8; border:1px solid #333; border-radius:4px; text-align:center;">
+                        <span style="color:#888;">%</span>
+                    </div>
+                </div>
+                <p style="font-size: 11px; color: #888; margin-top: 8px;">根据选定的角落位置，裁剪掉一定比例的区域来移除水印。</p>
+                <button id="apply-smart-crop" class="primary-btn" style="width:100%; margin-top:10px;">应用裁剪去水印</button>
+`;
+
+            // 位置选择
+            let selectedPosition = 'top-left';
+            const posButtons = panel.querySelectorAll('.wm-pos-btn');
+            posButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    posButtons.forEach(b => b.style.border = '2px solid transparent');
+                    btn.style.border = '2px solid #1a73e8';
+                    selectedPosition = btn.dataset.pos;
+                });
+            });
+
+            // 裁剪比例 - 滑块和输入框同步
+            const slider = document.getElementById('crop-percent-slider');
+            const numInput = document.getElementById('crop-percent-input');
+
+            slider.addEventListener('input', (e) => {
+                numInput.value = e.target.value;
+            });
+
+            numInput.addEventListener('input', (e) => {
+                let val = parseInt(e.target.value) || 2;
+                val = Math.max(2, Math.min(30, val));
+                slider.value = val;
+            });
+
+            // 应用裁剪
+            document.getElementById('apply-smart-crop').addEventListener('click', () => {
+                const cropPercent = parseInt(document.getElementById('crop-percent-slider').value);
+                this.applySmartCrop(selectedPosition, cropPercent);
             });
         } else if (tool === 'grid-slice') {
             panel.innerHTML = `
