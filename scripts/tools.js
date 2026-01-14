@@ -1182,17 +1182,37 @@ const toolManager = {
         try {
             console.log('[AI图标] 开始生成，描述:', description);
 
-            // 构建提示词
-            const prompt = `为浏览器插件生成一个现代、简洁的 1:1 比例图标。
-设计要求：
-- 核心功能：${description}
-- 风格：极简主义，可识别性强
-- 背景：纯白色背景
-- 构图：主体元素居中，避免微小文字`;
+            // 构建提示词 - 优化版：强调立体感和填充
+            const prompt = `为浏览器插件生成一个 1:1 正方形尺寸的图标。
 
-            // 调用 API
-            const apiKey = 'sk-FlptvyXGnbpmX3vwQg4syMxCTxxvgoI593jvc9e8sP7NERUB';
-            const apiUrl = 'https://yunwu.ai/v1beta/models/gemini-2.5-flash-image-preview:generateContent';
+【核心要求】
+- 构图：主体元素必须填满整个画布边缘，四角贴边，不能有任何空白边距
+- 风格：现代扁平化设计，带轻微立体感和渐变效果
+- 颜色：使用丰富的渐变色或双色搭配，避免单一纯色
+- 细节：边缘清晰锐利，视觉冲击感强
+
+【内容主题】
+${description}
+
+【技术规格】
+- 尺寸：1024x1024 像素（高质量）
+- 背景：渐变或纯色填充整个画布
+- 格式：PNG 透明背景
+
+请直接生成图标图片，不要包含任何文字说明或 Markdown 格式。`;
+
+            // 从输入框获取 API 配置
+            const apiKeyInput = document.getElementById('api-key');
+            const apiUrlInput = document.getElementById('api-url');
+            const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+            const apiUrl = apiUrlInput ? apiUrlInput.value.trim() : 'https://yunwu.ai/v1beta/models/gemini-2.5-flash-image-preview:generateContent';
+
+            if (!apiKey) {
+                alert('请先输入 API Key');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
 
             console.log('[AI图标] 发送 API 请求...');
             const response = await fetch(apiUrl, {
@@ -1299,7 +1319,7 @@ const toolManager = {
                     const tempCanvas = new fabric.Canvas(null, {
                         width: size,
                         height: size,
-                        backgroundColor: '#2d2d2d'
+                        backgroundColor: null
                     });
 
                     // 克隆原始图片
@@ -1308,12 +1328,23 @@ const toolManager = {
                             // 重置缩放，使用原始尺寸
                             clonedImg.scale(1);
 
-                            // 计算缩放比例：让图片填充目标尺寸的正方形
-                            const scale = Math.max(size / originalWidth, size / originalHeight);
+                            // 计算缩放比例：使用 cover 模式，确保图片完全填充画布
+                            // Math.min 确保较大的边填满画布，较小的边可能超出
+                            const scale = Math.min(size / originalWidth, size / originalHeight);
                             clonedImg.scale(scale);
 
+                            // 居中并确保填满
                             tempCanvas.add(clonedImg);
                             tempCanvas.centerObject(clonedImg);
+                            
+                            // 确保图片覆盖整个画布（左上角对齐，超出部分被裁剪）
+                            const scaledWidth = originalWidth * scale;
+                            const scaledHeight = originalHeight * scale;
+                            clonedImg.set({
+                                left: (size - scaledWidth) / 2,
+                                top: (size - scaledHeight) / 2
+                            });
+
                             tempCanvas.renderAll();
 
                             // 转换为 data URL
@@ -1681,39 +1712,41 @@ const toolManager = {
                         this.resetFilters();
                     });
                 } else if (tool === 'icon-gen') {
+                    // 从 localStorage 读取保存的 API 配置
+                    const savedApiKey = localStorage.getItem('iconGenApiKey') || '';
+                    const savedApiUrl = localStorage.getItem('iconGenApiUrl') || 'https://yunwu.ai/v1beta/models/gemini-2.5-flash-image-preview:generateContent';
+
                     panel.innerHTML = `
-                <!-- 独立的预览画布区域 -->
                 <div class="prop-item">
                     <label>图标预览</label>
-                    <div id="icon-preview-wrapper" style="display:flex; justify-content:center; align-items:center; background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:10px; margin-top:5px;">
-                        <canvas id="icon-preview-canvas" width="280" height="280"></canvas>
+                    <div id="icon-preview-wrapper" style="display:flex; justify-content:center; align-items:center; background:#1a1a1a; border:1px solid #333; border-radius:4px; padding:8px; margin-top:5px;">
+                        <canvas id="icon-preview-canvas" width="240" height="240"></canvas>
                     </div>
-                    <p style="font-size:10px; color:#666; margin-top:5px; text-align:center;">预览尺寸 280×280</p>
                 </div>
 
-                <div style="border-top:1px solid #333; margin:15px 0;"></div>
-
                 <div class="prop-item">
-                    <label>方式一：上传图片</label>
-                    <button id="upload-icon" class="secondary-btn" style="width:100%; margin-top:5px;">📁 上传图片裁剪</button>
+                    <label>API Key</label>
+                    <input type="password" id="api-key" value="${savedApiKey}" placeholder="输入 API Key" 
+                        style="width:100%; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px; padding:6px; margin-top:4px; font-size:12px;">
+                    <p style="font-size:10px; color:#888; margin-top:4px;">
+                        推荐 <a href="https://yunwu.ai" target="_blank" style="color:#3b82f6;">云雾AI</a> Gemini 2.5 Flash 接口
+                    </p>
                 </div>
 
-                <div style="border-top:1px solid #333; margin:15px 0;"></div>
-
                 <div class="prop-item">
-                    <label>方式二：AI 生成图标</label>
-                    <textarea id="ai-description" placeholder="描述你的插件功能，例如：&#10;'极简的图片编辑器，支持裁剪、旋转、滤镜等功能'"
-                        style="width:100%; height:80px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px; padding:8px; font-size:12px; resize:vertical; margin-top:5px;"></textarea>
-                    <p id="icon-keywords" style="font-size:11px; color:#3b82f6; margin-top:5px;"></p>
-                    <button id="btn-generate-icon" class="primary-btn" style="width:100%; margin-top:8px;">✨ AI 生成图标</button>
+                    <label>图标描述</label>
+                    <textarea id="ai-description" placeholder="例如：一个渐变色彩的相机图标，现代简约风格"
+                        style="width:100%; height:60px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px; padding:6px; font-size:12px; resize:vertical; margin-top:4px;"></textarea>
+                    <div style="display:flex; gap:8px; margin-top:6px;">
+                        <button id="btn-generate-icon" class="primary-btn" style="flex:1;">✨ AI 生成</button>
+                        <button id="upload-icon" class="secondary-btn" style="flex:1;">📁 上传</button>
+                    </div>
                 </div>
 
-                <div style="border-top:1px solid #333; margin:15px 0;"></div>
-
                 <div class="prop-item">
-                    <label style="color:#34a853;">一键打包下载</label>
-                    <p style="font-size:11px; color:#888; margin-top:5px;">支持尺寸：16×16, 32×32, 48×48, 128×128</p>
-                    <button id="btn-download-icons" class="primary-btn" style="width:100%; margin-top:8px; background:#34a853;">📦 打包下载图标包</button>
+                    <label style="color:#34a853;">打包下载</label>
+                    <p style="font-size:10px; color:#888; margin:4px 0;">生成 16×16, 32×32, 48×48, 128×128</p>
+                    <button id="btn-download-icons" class="primary-btn" style="width:100%; background:#34a853; margin-top:4px;">📦 下载图标包</button>
                 </div>
 `;
 
@@ -1728,6 +1761,10 @@ const toolManager = {
 
                     document.getElementById('btn-download-icons').addEventListener('click', () => {
                         this.downloadIcons();
+                    });
+
+                    document.getElementById('api-key').addEventListener('input', (e) => {
+                        localStorage.setItem('iconGenApiKey', e.target.value);
                     });
                 } else {
                     // 检查是否选中了文字对象
