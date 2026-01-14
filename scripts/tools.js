@@ -1133,16 +1133,35 @@ const toolManager = {
     },
 
     addText() {
+        const fontStacks = this._getFontStacks();
         const text = new fabric.IText('输入文字...', {
             left: 100,
             top: 100,
             fontSize: 40,
             fill: '#ffffff',
-            fontFamily: 'Arial',
+            fontFamily: fontStacks.default,
             textBaseline: 'alphabetic'
         });
         canvas.add(text);
         canvas.setActiveObject(text);
+    },
+
+    // 安全字体栈定义，确保跨平台兼容
+    _getFontStacks() {
+        return {
+            // 系统默认 - 最安全的无衬线字体栈
+            default: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji"',
+            // 黑体 - 中文无衬线字体
+            heiti: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", "Noto Sans CJK SC", sans-serif',
+            // 楷体 - 中文楷书字体
+            kaiti: 'STKaiti, KaiTi, "Kaiti SC", "AR PL UKai CN", serif',
+            // 宋体 - 中文衬线字体
+            songti: '"Songti SC", STSong, SimSun, "AR PL UMing CN", "Noto Serif CJK SC", serif',
+            // 手写体 - 手写风格字体
+            handwrite: '"Comic Sans MS", "Brush Script MT", "Segoe Script", cursive',
+            // 等宽字体 - 代码/技术风格
+            mono: 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+        };
     },
 
     addImageWatermark() {
@@ -2188,7 +2207,24 @@ ${description}
             // 检查是否选中了文字对象
             const activeObj = canvas.getActiveObject();
             if (activeObj && activeObj.type === 'i-text') {
+                // 获取当前字体的显示名称
+                const fontStacks = this._getFontStacks();
+                const currentFontKey = Object.keys(fontStacks).find(key =>
+                    fontStacks[key] === activeObj.fontFamily
+                ) || 'default';
+
                 panel.innerHTML = `
+                    <div class="prop-item">
+                        <label>字体选择</label>
+                        <select id="text-font" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                            <option value="default" ${currentFontKey === 'default' ? 'selected' : ''}>系统默认</option>
+                            <option value="heiti" ${currentFontKey === 'heiti' ? 'selected' : ''}>黑体</option>
+                            <option value="kaiti" ${currentFontKey === 'kaiti' ? 'selected' : ''}>楷体</option>
+                            <option value="songti" ${currentFontKey === 'songti' ? 'selected' : ''}>宋体</option>
+                            <option value="handwrite" ${currentFontKey === 'handwrite' ? 'selected' : ''}>手写体</option>
+                            <option value="mono" ${currentFontKey === 'mono' ? 'selected' : ''}>等宽字体</option>
+                        </select>
+                    </div>
                     <div class="prop-item">
                         <label>字体颜色</label>
                         <input type="color" id="text-color" value="${this.toHexColor(activeObj.fill)}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
@@ -2204,6 +2240,13 @@ ${description}
                         <span id="text-opacity-value" style="color:#3b82f6;">${Math.round(activeObj.opacity * 100)}%</span>
                     </div>
 `;
+
+                // 字体选择
+                document.getElementById('text-font').addEventListener('change', (e) => {
+                    const fontFamily = this._getFontStacks()[e.target.value];
+                    activeObj.set('fontFamily', fontFamily);
+                    canvas.renderAll();
+                });
 
                 // 颜色选择
                 document.getElementById('text-color').addEventListener('input', (e) => {
