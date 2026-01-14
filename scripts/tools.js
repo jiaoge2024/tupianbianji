@@ -1225,47 +1225,101 @@ const toolManager = {
         this.updatePropertyPanel('shape');
     },
 
-    addRect(strokeColor = '#ff0000', strokeWidth = 4) {
+    addRect(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'dashed') {
         const rect = new fabric.Rect({
             left: 100,
             top: 100,
             fill: 'transparent',
             stroke: strokeColor,
             strokeWidth: strokeWidth,
-            width: 100,
-            height: 100,
-            cornerStyle: 'circle'
+            strokeDashArray: lineStyle === 'dashed' ? [6, 3] : null,
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            width: 120,
+            height: 80,
+            rx: 4, // Chrome DevTools style rounded corners
+            ry: 4,
+            // Shadow effect for depth
+            shadow: new fabric.Shadow({
+                color: 'rgba(0, 0, 0, 0.15)',
+                blur: 4,
+                offsetX: 1,
+                offsetY: 1
+            }),
+            // Improved control point styling
+            cornerStyle: 'circle',
+            cornerColor: strokeColor,
+            cornerStrokeColor: '#ffffff',
+            cornerSize: 8,
+            transparentCorners: false,
+            borderColor: strokeColor,
+            borderScaleFactor: 1.5
         });
         canvas.add(rect);
         canvas.setActiveObject(rect);
     },
 
-    addCircle(strokeColor = '#ff0000', strokeWidth = 4) {
+    addCircle(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'dashed') {
         const circle = new fabric.Circle({
             left: 100,
             top: 100,
             fill: 'transparent',
             stroke: strokeColor,
             strokeWidth: strokeWidth,
+            strokeDashArray: lineStyle === 'dashed' ? [6, 3] : null,
+            strokeLineCap: 'round',
             radius: 50,
-            cornerStyle: 'circle'
+            // Shadow effect for depth
+            shadow: new fabric.Shadow({
+                color: 'rgba(0, 0, 0, 0.15)',
+                blur: 4,
+                offsetX: 1,
+                offsetY: 1
+            }),
+            // Improved control point styling
+            cornerStyle: 'circle',
+            cornerColor: strokeColor,
+            cornerStrokeColor: '#ffffff',
+            cornerSize: 8,
+            transparentCorners: false,
+            borderColor: strokeColor,
+            borderScaleFactor: 1.5
         });
         canvas.add(circle);
         canvas.setActiveObject(circle);
     },
 
-    addArrow(strokeColor = '#ff0000', strokeWidth = 4) {
-        const path = new fabric.Path('M 0 0 L 50 0 L 40 -10 M 50 0 L 40 10', {
+    addArrow(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'solid') {
+        // Chrome DevTools style arrow - cleaner, more refined path
+        const arrowPath = new fabric.Path('M 0 0 L 70 0 L 58 -8 M 70 0 L 58 8', {
             left: 100,
             top: 100,
             stroke: strokeColor,
             strokeWidth: strokeWidth,
+            strokeDashArray: lineStyle === 'dashed' ? [6, 3] : null,
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
             fill: 'transparent',
-            scaleX: 2,
-            scaleY: 2
+            scaleX: 1.5,
+            scaleY: 1.5,
+            // Shadow effect for depth
+            shadow: new fabric.Shadow({
+                color: 'rgba(0, 0, 0, 0.15)',
+                blur: 4,
+                offsetX: 1,
+                offsetY: 1
+            }),
+            // Improved control point styling
+            cornerStyle: 'circle',
+            cornerColor: strokeColor,
+            cornerStrokeColor: '#ffffff',
+            cornerSize: 8,
+            transparentCorners: false,
+            borderColor: strokeColor,
+            borderScaleFactor: 1.5
         });
-        canvas.add(path);
-        canvas.setActiveObject(path);
+        canvas.add(arrowPath);
+        canvas.setActiveObject(arrowPath);
     },
 
     // ========== 图标生成器（独立画布系统）==========
@@ -1898,16 +1952,48 @@ ${description}
                     </select>
                 </div>
                 <div class="prop-item">
-                    <label>线条颜色</label>
-                    <input type="color" id="shape-color-preset" value="#ff0000" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
+                    <label>预设颜色</label>
+                    <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:6px; margin-bottom:8px;">
+                        <div class="shape-color-opt" style="background:#1a73e8; height:26px; border-radius:4px; cursor:pointer; border:2px solid #1a73e8;" data-color="#1a73e8" title="DevTools 蓝"></div>
+                        <div class="shape-color-opt" style="background:#ea4335; height:26px; border-radius:4px; cursor:pointer; border:2px solid transparent;" data-color="#ea4335" title="警告红"></div>
+                        <div class="shape-color-opt" style="background:#34a853; height:26px; border-radius:4px; cursor:pointer; border:2px solid transparent;" data-color="#34a853" title="成功绿"></div>
+                        <div class="shape-color-opt" style="background:#fbbc05; height:26px; border-radius:4px; cursor:pointer; border:2px solid transparent;" data-color="#fbbc05" title="警告黄"></div>
+                        <div class="shape-color-opt" style="background:#9c27b0; height:26px; border-radius:4px; cursor:pointer; border:2px solid transparent;" data-color="#9c27b0" title="紫色"></div>
+                    </div>
+                    <input type="color" id="shape-color-preset" value="#1a73e8" style="width:100%; height:30px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
+                </div>
+                <div class="prop-item">
+                    <label>线条样式</label>
+                    <select id="shape-line-style" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="dashed">虚线 (DevTools 风格)</option>
+                        <option value="solid">实线</option>
+                    </select>
                 </div>
                 <div class="prop-item">
                     <label>线条粗细</label>
-                    <input type="range" min="1" max="20" value="4" id="shape-width-preset">
-                    <span id="shape-width-preset-value" style="color:#3b82f6;">4px</span>
+                    <input type="range" min="1" max="10" value="2" id="shape-width-preset">
+                    <span id="shape-width-preset-value" style="color:#1a73e8;">2px</span>
                 </div>
                 <button id="add-shape" class="primary-btn" style="width:100%; margin-top:10px;">添加形状</button>
 `;
+
+            // Preset color selection
+            let selectedColor = '#1a73e8';
+            const colorOpts = panel.querySelectorAll('.shape-color-opt');
+            colorOpts.forEach(opt => {
+                opt.addEventListener('click', () => {
+                    colorOpts.forEach(o => o.style.border = '2px solid transparent');
+                    opt.style.border = `2px solid ${opt.dataset.color}`;
+                    selectedColor = opt.dataset.color;
+                    document.getElementById('shape-color-preset').value = selectedColor;
+                });
+            });
+
+            // Custom color picker sync
+            document.getElementById('shape-color-preset').addEventListener('input', (e) => {
+                selectedColor = e.target.value;
+                colorOpts.forEach(o => o.style.border = '2px solid transparent');
+            });
 
             document.getElementById('shape-width-preset').addEventListener('input', (e) => {
                 document.getElementById('shape-width-preset-value').textContent = e.target.value + 'px';
@@ -1917,16 +2003,17 @@ ${description}
                 const shapeType = document.getElementById('shape-type').value;
                 const strokeColor = document.getElementById('shape-color-preset').value;
                 const strokeWidth = parseInt(document.getElementById('shape-width-preset').value);
+                const lineStyle = document.getElementById('shape-line-style').value;
 
                 switch (shapeType) {
                     case 'rect':
-                        this.addRect(strokeColor, strokeWidth);
+                        this.addRect(strokeColor, strokeWidth, lineStyle);
                         break;
                     case 'circle':
-                        this.addCircle(strokeColor, strokeWidth);
+                        this.addCircle(strokeColor, strokeWidth, lineStyle);
                         break;
                     case 'arrow':
-                        this.addArrow(strokeColor, strokeWidth);
+                        this.addArrow(strokeColor, strokeWidth, lineStyle);
                         break;
                 }
             });
