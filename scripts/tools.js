@@ -87,14 +87,8 @@ const toolManager = {
             case 'image-watermark':
                 this.addImageWatermark();
                 break;
-            case 'rect':
-                this.addRect();
-                break;
-            case 'circle':
-                this.addCircle();
-                break;
-            case 'arrow':
-                this.addArrow();
+            case 'shape':
+                this.initShape();
                 break;
             case 'icon-gen':
                 this.initIconGenerator();
@@ -1226,13 +1220,18 @@ const toolManager = {
         historyManager.push(canvas);
     },
 
-    addRect() {
+    // ========== 标注形状工具 ==========
+    initShape() {
+        this.updatePropertyPanel('shape');
+    },
+
+    addRect(strokeColor = '#ff0000', strokeWidth = 4) {
         const rect = new fabric.Rect({
             left: 100,
             top: 100,
             fill: 'transparent',
-            stroke: '#ff0000',
-            strokeWidth: 4,
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
             width: 100,
             height: 100,
             cornerStyle: 'circle'
@@ -1241,13 +1240,13 @@ const toolManager = {
         canvas.setActiveObject(rect);
     },
 
-    addCircle() {
+    addCircle(strokeColor = '#ff0000', strokeWidth = 4) {
         const circle = new fabric.Circle({
             left: 100,
             top: 100,
             fill: 'transparent',
-            stroke: '#ff0000',
-            strokeWidth: 4,
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
             radius: 50,
             cornerStyle: 'circle'
         });
@@ -1255,12 +1254,12 @@ const toolManager = {
         canvas.setActiveObject(circle);
     },
 
-    addArrow() {
+    addArrow(strokeColor = '#ff0000', strokeWidth = 4) {
         const path = new fabric.Path('M 0 0 L 50 0 L 40 -10 M 50 0 L 40 10', {
             left: 100,
             top: 100,
-            stroke: '#ff0000',
-            strokeWidth: 4,
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
             fill: 'transparent',
             scaleX: 2,
             scaleY: 2
@@ -1886,6 +1885,49 @@ ${description}
             document.getElementById('block-size').addEventListener('input', (e) => {
                 if (this.mosaicBrush) {
                     this.mosaicBrush.blockSize = parseInt(e.target.value);
+                }
+            });
+        } else if (tool === 'shape') {
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label>形状类型</label>
+                    <select id="shape-type" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="rect">矩形</option>
+                        <option value="circle">圆形</option>
+                        <option value="arrow">箭头</option>
+                    </select>
+                </div>
+                <div class="prop-item">
+                    <label>线条颜色</label>
+                    <input type="color" id="shape-color-preset" value="#ff0000" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
+                </div>
+                <div class="prop-item">
+                    <label>线条粗细</label>
+                    <input type="range" min="1" max="20" value="4" id="shape-width-preset">
+                    <span id="shape-width-preset-value" style="color:#3b82f6;">4px</span>
+                </div>
+                <button id="add-shape" class="primary-btn" style="width:100%; margin-top:10px;">添加形状</button>
+`;
+
+            document.getElementById('shape-width-preset').addEventListener('input', (e) => {
+                document.getElementById('shape-width-preset-value').textContent = e.target.value + 'px';
+            });
+
+            document.getElementById('add-shape').addEventListener('click', () => {
+                const shapeType = document.getElementById('shape-type').value;
+                const strokeColor = document.getElementById('shape-color-preset').value;
+                const strokeWidth = parseInt(document.getElementById('shape-width-preset').value);
+
+                switch (shapeType) {
+                    case 'rect':
+                        this.addRect(strokeColor, strokeWidth);
+                        break;
+                    case 'circle':
+                        this.addCircle(strokeColor, strokeWidth);
+                        break;
+                    case 'arrow':
+                        this.addArrow(strokeColor, strokeWidth);
+                        break;
                 }
             });
         } else if (tool === 'grid-slice') {
