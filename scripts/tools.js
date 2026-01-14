@@ -99,6 +99,9 @@ const toolManager = {
             case 'icon-gen':
                 this.initIconGenerator();
                 break;
+            case 'frame':
+                this.initFrame();
+                break;
         }
     },
 
@@ -1619,6 +1622,205 @@ ${description}
         document.getElementById('saturation-value').textContent = '0';
     },
 
+    // ========== 图框/阴影功能 ==========
+    initFrame() {
+        this.updatePropertyPanel('frame');
+    },
+
+    applyFrame(frameType, shadowType, frameWidth) {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) {
+            alert('请先打开一张图片');
+            return;
+        }
+
+        // 获取原始图片尺寸
+        const imgWidth = baseImage.width * baseImage.scaleX;
+        const imgHeight = baseImage.height * baseImage.scaleY;
+
+        // 计算边框尺寸
+        let paddingTop = frameWidth;
+        let paddingRight = frameWidth;
+        let paddingBottom = frameWidth;
+        let paddingLeft = frameWidth;
+
+        // 拍立得效果：底部边框更宽
+        if (frameType === 'polaroid') {
+            paddingBottom = frameWidth * 3;
+        }
+
+        // 计算新画布尺寸
+        const newWidth = imgWidth + paddingLeft + paddingRight;
+        const newHeight = imgHeight + paddingTop + paddingBottom;
+
+        // 创建离屏画布
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = newWidth;
+        offscreenCanvas.height = newHeight;
+        const ctx = offscreenCanvas.getContext('2d');
+
+        // 绘制边框背景
+        this._drawFrameBackground(ctx, frameType, newWidth, newHeight, frameWidth);
+
+        // 绘制阴影效果（内阴影在图片上方绘制）
+        if (shadowType !== 'none' && shadowType !== 'inner') {
+            this._applyShadow(ctx, shadowType, paddingLeft, paddingTop, imgWidth, imgHeight);
+        }
+
+        // 将原始图片绘制到中心位置
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = imgWidth;
+        tempCanvas.height = imgHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // 导出原始图片
+        const imgDataUrl = baseImage.toDataURL({ format: 'png' });
+        const img = new Image();
+
+        img.onload = () => {
+            tempCtx.drawImage(img, 0, 0, imgWidth, imgHeight);
+
+            // 将图片绘制到主画布
+            ctx.drawImage(tempCanvas, paddingLeft, paddingTop);
+
+            // 绘制内阴影效果
+            if (shadowType === 'inner') {
+                this._drawInnerShadow(ctx, paddingLeft, paddingTop, imgWidth, imgHeight);
+            }
+
+            // 复古相框：绘制内边框线条
+            if (frameType === 'vintage') {
+                this._drawVintageFrame(ctx, paddingLeft, paddingTop, imgWidth, imgHeight, frameWidth);
+            }
+
+            // 将结果加载到 Fabric.js 画布
+            const resultDataUrl = offscreenCanvas.toDataURL('image/png');
+            fabric.Image.fromURL(resultDataUrl, (newImg) => {
+                canvas.clear();
+                canvas.setDimensions({ width: newWidth, height: newHeight });
+                newImg.set({
+                    left: 0,
+                    top: 0,
+                    selectable: true,
+                    evented: true
+                });
+                canvas.add(newImg);
+                canvas.renderAll();
+                historyManager.push(canvas);
+            });
+        };
+        img.src = imgDataUrl;
+    },
+
+    _drawFrameBackground(ctx, frameType, width, height, frameWidth) {
+        switch (frameType) {
+            case 'none':
+                ctx.fillStyle = 'transparent';
+                break;
+            case 'white':
+                ctx.fillStyle = '#ffffff';
+                break;
+            case 'black':
+                ctx.fillStyle = '#1a1a1a';
+                break;
+            case 'gradient':
+                const gradient = ctx.createLinearGradient(0, 0, width, height);
+                gradient.addColorStop(0, '#667eea');
+                gradient.addColorStop(0.5, '#764ba2');
+                gradient.addColorStop(1, '#f093fb');
+                ctx.fillStyle = gradient;
+                break;
+            case 'vintage':
+                // 复古相框：深棕色外框
+                ctx.fillStyle = '#3d2914';
+                break;
+            case 'polaroid':
+                ctx.fillStyle = '#f5f5f5';
+                break;
+            default:
+                ctx.fillStyle = '#ffffff';
+        }
+        ctx.fillRect(0, 0, width, height);
+    },
+
+    _applyShadow(ctx, shadowType, x, y, width, height) {
+        ctx.save();
+        switch (shadowType) {
+            case 'soft':
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                ctx.shadowBlur = 20;
+                ctx.shadowOffsetX = 5;
+                ctx.shadowOffsetY = 5;
+                break;
+            case 'strong':
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetX = 8;
+                ctx.shadowOffsetY = 8;
+                break;
+            case 'long':
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                ctx.shadowBlur = 5;
+                ctx.shadowOffsetX = 15;
+                ctx.shadowOffsetY = 15;
+                break;
+        }
+        // 绘制一个临时矩形来产生阴影
+        ctx.fillStyle = 'rgba(255,255,255,0.01)';
+        ctx.fillRect(x, y, width, height);
+        ctx.restore();
+    },
+
+    _drawInnerShadow(ctx, x, y, width, height) {
+        // 内阴影效果：在图片边缘绘制渐变
+        const shadowSize = 20;
+
+        // 上边内阴影
+        const topGradient = ctx.createLinearGradient(x, y, x, y + shadowSize);
+        topGradient.addColorStop(0, 'rgba(0,0,0,0.3)');
+        topGradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = topGradient;
+        ctx.fillRect(x, y, width, shadowSize);
+
+        // 左边内阴影
+        const leftGradient = ctx.createLinearGradient(x, y, x + shadowSize, y);
+        leftGradient.addColorStop(0, 'rgba(0,0,0,0.3)');
+        leftGradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = leftGradient;
+        ctx.fillRect(x, y, shadowSize, height);
+
+        // 下边内阴影
+        const bottomGradient = ctx.createLinearGradient(x, y + height, x, y + height - shadowSize);
+        bottomGradient.addColorStop(0, 'rgba(0,0,0,0.2)');
+        bottomGradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = bottomGradient;
+        ctx.fillRect(x, y + height - shadowSize, width, shadowSize);
+
+        // 右边内阴影
+        const rightGradient = ctx.createLinearGradient(x + width, y, x + width - shadowSize, y);
+        rightGradient.addColorStop(0, 'rgba(0,0,0,0.2)');
+        rightGradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = rightGradient;
+        ctx.fillRect(x + width - shadowSize, y, shadowSize, height);
+    },
+
+    _drawVintageFrame(ctx, x, y, width, height, frameWidth) {
+        // 复古相框：绘制内边框装饰线
+        const innerPadding = frameWidth * 0.3;
+
+        // 外层金色线
+        ctx.strokeStyle = '#b8860b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(innerPadding, innerPadding,
+            x + width + frameWidth - innerPadding * 2,
+            y + height + frameWidth - innerPadding * 2);
+
+        // 内层深色线（贴近图片）
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+    },
+
     updatePropertyPanel(tool) {
         const panel = document.getElementById('panel-content');
         panel.innerHTML = '';
@@ -1884,6 +2086,48 @@ ${description}
 
             document.getElementById('reset-filters').addEventListener('click', () => {
                 this.resetFilters();
+            });
+        } else if (tool === 'frame') {
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label>图框类型</label>
+                    <select id="frame-type" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="none">无边框</option>
+                        <option value="white">简约白边</option>
+                        <option value="black">简约黑边</option>
+                        <option value="gradient">渐变边框</option>
+                        <option value="vintage">复古相框</option>
+                        <option value="polaroid">拍立得</option>
+                    </select>
+                </div>
+                <div class="prop-item">
+                    <label>阴影类型</label>
+                    <select id="shadow-type" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="none">无阴影</option>
+                        <option value="soft">柔和阴影</option>
+                        <option value="strong">强烈阴影</option>
+                        <option value="long">长投影</option>
+                        <option value="inner">内阴影</option>
+                    </select>
+                </div>
+                <div class="prop-item">
+                    <label>边框宽度</label>
+                    <input type="range" min="10" max="100" value="30" id="frame-width">
+                    <span id="frame-width-value" style="color:#3b82f6;">30px</span>
+                </div>
+                <button id="apply-frame" class="primary-btn" style="width:100%; margin-top:10px;">应用效果</button>
+                <p style="font-size:11px; color:#888; margin-top:10px;">提示：选择拍立得效果时，底部边框会更宽以模拟拍立得相纸。</p>
+`;
+
+            document.getElementById('frame-width').addEventListener('input', (e) => {
+                document.getElementById('frame-width-value').textContent = e.target.value + 'px';
+            });
+
+            document.getElementById('apply-frame').addEventListener('click', () => {
+                const frameType = document.getElementById('frame-type').value;
+                const shadowType = document.getElementById('shadow-type').value;
+                const frameWidth = parseInt(document.getElementById('frame-width').value);
+                this.applyFrame(frameType, shadowType, frameWidth);
             });
         } else if (tool === 'icon-gen') {
             // 从 localStorage 读取保存的 API 配置
