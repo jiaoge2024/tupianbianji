@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>极简图片编辑器</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- 引入 Fabric.js 处理复杂的 Canvas 操作 -->
+    <script src="lib/fabric.min.js"></script>
+    <script src="lib/jszip.min.js"></script>
+    <!-- 引入 MediaPipe Selfie Segmentation 用于人像抠图 -->
+    <script src="lib/mediapipe/selfie_segmentation.js"></script>
+    <style>
+        body {
+            min-width: 800px;
+            min-height: 600px;
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <header class="top-nav">
+            <div class="logo-area">
+                <div class="logo-icon"></div>
+                <h1>Image Studio</h1>
+                <span class="author-credit" id="author-credit">作者: jiaoge</span>
+            </div>
+            <div class="action-history">
+                <button id="btn-undo" title="撤销 (Ctrl+Z)" disabled>↩ 撤销</button>
+                <button id="btn-redo" title="前进 (Ctrl+Y)" disabled>↪ 前进</button>
+            </div>
+            <div class="export-area">
+                <div class="export-controls" style="display: none; align-items: center; gap: 10px; margin-right: 15px;">
+                    <select id="export-format" class="nav-select">
+                        <option value="png">PNG</option>
+                        <option value="jpeg">JPEG</option>
+                        <option value="webp">WEBP</option>
+                    </select>
+                    <div id="quality-wrapper" style="display: none; align-items: center; gap: 5px;">
+                        <label for="export-quality" style="color: #ccc; font-size: 12px;">质量</label>
+                        <input type="range" id="export-quality" min="0.1" max="1" step="0.1" value="0.9"
+                            style="width: 60px;">
+                        <span id="quality-value" style="color: #ccc; font-size: 12px; min-width: 24px;">0.9</span>
+                    </div>
+                </div>
+                <button id="btn-reset" class="danger-btn" style="display: none;">删除图片</button>
+                <button id="btn-copy" class="secondary-btn" style="display: none;">复制剪贴板</button>
+                <button id="btn-download" class="primary-btn" style="display: none;">下载图片</button>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <!-- 左侧工具栏 -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-content">
+                    <div class="tool-list">
+                        <div class="tool-group">
+                            <h3>基础工具</h3>
+                            <!-- Select button removed as per user request -->
+                            <button class="tool-btn" data-tool="crop">裁剪</button>
+                            <button class="tool-btn" data-tool="resize">尺寸</button>
+                            <button class="tool-btn" data-tool="rotate">旋转</button>
+                            <button class="tool-btn" data-tool="filter">滤镜</button>
+                            <button class="tool-btn" data-tool="mosaic">马赛克</button>
+                            <button class="tool-btn" data-tool="frame">图框阴影</button>
+                            <button class="tool-btn" data-tool="grid-slice">网格切图</button>
+                            <button class="tool-btn" data-tool="id-photo">证件照</button>
+                            <button class="tool-btn" data-tool="ai-background">背景替换</button>
+                            <button class="tool-btn" data-tool="remove-watermark">去水印</button>
+                        </div>
+                        <div class="tool-group">
+                            <h3>标注工具</h3>
+                            <button class="tool-btn" data-tool="shape">标注形状</button>
+                        </div>
+                        <div class="tool-group">
+                            <h3>水印/文字</h3>
+                            <button class="tool-btn" data-tool="text">添加文本</button>
+                            <button class="tool-btn" data-tool="image-watermark">添加图片</button>
+                        </div>
+                        <div class="tool-group">
+                            <h3>趣味贴纸</h3>
+                            <button class="tool-btn" data-tool="sticker">添加贴纸</button>
+                        </div>
+                        <div class="tool-group">
+                            <h3>插件工具</h3>
+                            <button class="tool-btn" data-tool="icon-gen">插件图标</button>
+                            <button class="tool-btn" data-tool="ocr">OCR识别</button>
+                        </div>
+                    </div>
+
+                    <!-- 动态属性面板 -->
+                    <div id="property-panel" class="property-panel">
+                        <div class="panel-content" id="panel-content">
+                            <!-- 这里将由 JS 根据选中的工具动态注入内容 -->
+                            <p class="empty-hint">选择已添加的内容进行调整</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 分隔线 - 可拖拽 -->
+            <div class="resizer" id="resizer"></div>
+
+            <!-- 中心画布区域 -->
+            <section class="canvas-area" id="drop-zone">
+                <div id="welcome-screen" class="welcome-screen">
+                    <div class="upload-box">
+                        <span class="upload-icon">📁</span>
+                        <p>拖入图片 或 点击上传</p>
+                        <p class="sub-text">支持粘贴 (Ctrl + V)</p>
+                        <input type="file" id="file-input" accept="image/*" hidden>
+                        <button class="upload-btn">选择图片</button>
+                    </div>
+                </div>
+                <!-- 实际的 Canvas 容器 -->
+                <div id="canvas-wrapper" class="canvas-wrapper" style="display: none;">
+                    <canvas id="main-canvas"></canvas>
+                    <div class="zoom-indicator">Zoom: <span id="zoom-level">100%</span></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- QR Code Modal -->
+    <div id="qr-modal" class="qr-modal" style="display: none;">
+        <div class="qr-modal-content">
+            <span class="qr-close">&times;</span>
+            <h3>扫码关注作者</h3>
+            <img src="assets/wechat-qr.jpg" alt="微信二维码" class="qr-image">
+            <p>VX：jgaigongju</p>
+        </div>
+    </div>
+
+    <!-- OCR Configuration Modal -->
+    <div id="ocr-config-modal" class="ocr-modal" style="display: none;">
+        <div class="ocr-modal-content">
+            <span class="ocr-close" id="ocr-config-close">&times;</span>
+            <h3>🔑 百度OCR API 配置</h3>
+            
+            <div class="ocr-form">
+                <div class="ocr-form-group">
+                    <label for="ocr-api-key">API Key</label>
+                    <input type="text" id="ocr-api-key" placeholder="请输入 API Key">
+                </div>
+                <div class="ocr-form-group">
+                    <label for="ocr-secret-key">Secret Key</label>
+                    <input type="password" id="ocr-secret-key" placeholder="请输入 Secret Key">
+                </div>
+                <button id="ocr-save-config" class="ocr-primary-btn">保存配置</button>
+            </div>
+
+            <div class="ocr-help-section">
+                <div class="ocr-help-toggle" id="ocr-help-toggle">
+                    <span>📖 如何获取 API Key？</span>
+                    <span class="ocr-toggle-icon">▼</span>
+                </div>
+                <div class="ocr-help-content" id="ocr-help-content" style="display: none;">
+                    <ol>
+                        <li>访问 <a href="https://console.bce.baidu.com/" target="_blank">百度智能云控制台</a></li>
+                        <li>注册/登录百度账号</li>
+                        <li>进入「产品服务」→「文字识别」</li>
+                        <li>点击「创建应用」</li>
+                        <li>获取 <strong>API Key</strong> 和 <strong>Secret Key</strong></li>
+                        <li>将密钥填入上方配置框</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="ocr-security-notice">
+                <h4>⚠️ 安全提示</h4>
+                <ul>
+                    <li>密钥仅存储在浏览器本地，不会上传到任何服务器</li>
+                    <li>请勿将密钥分享给他人</li>
+                    <li>建议仅在个人设备上使用此功能</li>
+                    <li>如怀疑密钥泄露，请立即在百度云控制台重置</li>
+                    <li>百度 OCR 服务有免费调用额度限制，请合理使用</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- OCR Result Modal -->
+    <div id="ocr-result-modal" class="ocr-modal" style="display: none;">
+        <div class="ocr-modal-content ocr-result-content">
+            <span class="ocr-close" id="ocr-result-close">&times;</span>
+            <h3>📝 OCR 识别结果</h3>
+            <div class="ocr-result-area">
+                <textarea id="ocr-result-text" readonly placeholder="识别结果将显示在这里..."></textarea>
+            </div>
+            <div class="ocr-result-actions">
+                <button id="ocr-copy-result" class="ocr-secondary-btn">📋 复制文字</button>
+                <button id="ocr-close-result" class="ocr-primary-btn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 核心逻辑 -->
+    <script src="scripts/history.js"></script>
+    <script src="scripts/tools.js"></script>
+    <script src="scripts/main.js"></script>
+</body>
+
+</html>
