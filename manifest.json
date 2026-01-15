@@ -4,17 +4,17 @@
   "version": "1.0.0",
   "description": "即开即修，本地处理，安全隐私。支持裁剪、缩放、马赛克及水印。",
   "icons": {
-    "16": "icon-16x16.png",
-    "32": "icon-32x32.png",
-    "48": "icon-48x48.png",
-    "128": "icon-128x128.png"
+    "16": "extension-icons/icon-16x16.png",
+    "32": "extension-icons/icon-32x32.png",
+    "48": "extension-icons/icon-48x48.png",
+    "128": "extension-icons/icon-128x128.png"
   },
   "action": {
     "default_icon": {
-      "16": "icon-16x16.png",
-      "32": "icon-32x32.png",
-      "48": "icon-48x48.png",
-      "128": "icon-128x128.png"
+      "16": "extension-icons/icon-16x16.png",
+      "32": "extension-icons/icon-32x32.png",
+      "48": "extension-icons/icon-48x48.png",
+      "128": "extension-icons/icon-128x128.png"
     },
     "default_title": "极简图片编辑器"
   },

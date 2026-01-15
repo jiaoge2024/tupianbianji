@@ -1143,8 +1143,7 @@ const toolManager = {
             top: 100,
             fontSize: 40,
             fill: '#ffffff',
-            fontFamily: fontStacks.default,
-            textBaseline: 'alphabetic'
+            fontFamily: fontStacks.default
         });
         canvas.add(text);
         canvas.setActiveObject(text);

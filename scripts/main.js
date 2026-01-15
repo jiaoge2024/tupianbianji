@@ -26,10 +26,6 @@ function initCanvas() {
     });
     canvas = window.canvas; // 保持局部引用兼容
 
-    if (fabric?.Text?.prototype) fabric.Text.prototype.textBaseline = 'alphabetic';
-    if (fabric?.IText?.prototype) fabric.IText.prototype.textBaseline = 'alphabetic';
-    if (fabric?.Textbox?.prototype) fabric.Textbox.prototype.textBaseline = 'alphabetic';
-
     // Resize canvas to fit container initially
     resizeCanvasToFit();
 
