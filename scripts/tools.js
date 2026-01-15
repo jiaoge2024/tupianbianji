@@ -99,6 +99,9 @@ const toolManager = {
             case 'remove-watermark':
                 this.initRemoveWatermark();
                 break;
+            case 'sticker':
+                this.initSticker();
+                break;
         }
     },
 
@@ -1256,6 +1259,85 @@ const toolManager = {
         input.click();
     },
 
+    // ========== 趣味贴纸功能 ==========
+    _getStickerList() {
+        return [
+            { emoji: '😀', name: '笑脸' },
+            { emoji: '😍', name: '爱心眼' },
+            { emoji: '🎉', name: '庆祝' },
+            { emoji: '⭐', name: '星星' },
+            { emoji: '❤️', name: '红心' },
+            { emoji: '👍', name: '点赞' },
+            { emoji: '🔥', name: '火焰' },
+            { emoji: '🌈', name: '彩虹' },
+            { emoji: '🎀', name: '蝴蝶结' },
+            { emoji: '🐱', name: '猫咪' },
+            { emoji: '🌸', name: '樱花' },
+            { emoji: '✨', name: '闪光' },
+            { emoji: '🎵', name: '音符' },
+            { emoji: '💎', name: '钻石' },
+            { emoji: '🍀', name: '四叶草' },
+            { emoji: '🦋', name: '蝴蝶' }
+        ];
+    },
+
+    initSticker() {
+        this.updatePropertyPanel('sticker');
+    },
+
+    addSticker(emoji) {
+        // 创建离屏 Canvas 渲染 Emoji
+        const size = 128; // 贴纸基础尺寸
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = size;
+        offscreenCanvas.height = size;
+        const ctx = offscreenCanvas.getContext('2d');
+
+        // 设置 Emoji 绘制样式
+        ctx.font = `${size * 0.8}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // 绘制 Emoji
+        ctx.fillText(emoji, size / 2, size / 2);
+
+        // 转为 Data URL
+        const dataUrl = offscreenCanvas.toDataURL('image/png');
+
+        // 添加到 Fabric.js 画布
+        fabric.Image.fromURL(dataUrl, (img) => {
+            // 设置初始位置（画布中心偏移，避免重叠）
+            const offsetX = (Math.random() - 0.5) * 100;
+            const offsetY = (Math.random() - 0.5) * 100;
+
+            img.set({
+                left: canvas.width / 2 + offsetX,
+                top: canvas.height / 2 + offsetY,
+                originX: 'center',
+                originY: 'center',
+                scaleX: 1,
+                scaleY: 1,
+                selectable: true,
+                evented: true,
+                // 标记为贴纸
+                isSticker: true,
+                // 美化控制点
+                cornerStyle: 'circle',
+                cornerColor: '#3b82f6',
+                cornerStrokeColor: '#ffffff',
+                cornerSize: 10,
+                transparentCorners: false,
+                borderColor: '#3b82f6'
+            });
+
+            canvas.add(img);
+            canvas.setActiveObject(img);
+            canvas.renderAll();
+            historyManager.push(canvas);
+        });
+    },
+
+
     rotateImage(angle) {
         // 获取所有对象
         const objects = canvas.getObjects();
@@ -2229,6 +2311,44 @@ ${description}
             document.getElementById('apply-smart-crop').addEventListener('click', () => {
                 const cropPercent = parseInt(document.getElementById('crop-percent-slider').value);
                 this.applySmartCrop(selectedPosition, cropPercent);
+            });
+        } else if (tool === 'sticker') {
+            const stickers = this._getStickerList();
+            const stickerButtons = stickers.map(s =>
+                `<div class="sticker-item" data-emoji="${s.emoji}" title="${s.name}" 
+                    style="font-size:22px; cursor:pointer; padding:4px; background:#2d2d2d; 
+                    border:2px solid transparent; border-radius:6px; text-align:center;
+                    transition: all 0.15s ease; display:flex; align-items:center; justify-content:center;
+                    min-height:36px;">
+                    ${s.emoji}
+                </div>`
+            ).join('');
+
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label style="color:#f59e0b; font-weight:bold;">🎨 选择贴纸</label>
+                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:4px; margin-top:8px;">
+                        ${stickerButtons}
+                    </div>
+                </div>
+                <p style="font-size:10px; color:#666; margin-top:8px;">点击贴纸添加，可拖动缩放</p>
+`;
+
+            // 贴纸点击事件
+            const stickerItems = panel.querySelectorAll('.sticker-item');
+            stickerItems.forEach(item => {
+                item.addEventListener('mouseenter', () => {
+                    item.style.border = '2px solid #f59e0b';
+                    item.style.transform = 'scale(1.1)';
+                });
+                item.addEventListener('mouseleave', () => {
+                    item.style.border = '2px solid transparent';
+                    item.style.transform = 'scale(1)';
+                });
+                item.addEventListener('click', () => {
+                    const emoji = item.dataset.emoji;
+                    this.addSticker(emoji);
+                });
             });
         } else if (tool === 'grid-slice') {
             panel.innerHTML = `
