@@ -1147,6 +1147,78 @@ const toolManager = {
         canvas.setActiveObject(text);
     },
 
+    // ========== 全图平铺水印功能 ==========
+    applyTiledWatermark(textContent, fontFamily, color, opacity, fontSize, angle, spacing) {
+        // 获取画布尺寸
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+
+        // 创建离屏画布
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = canvasWidth;
+        offscreenCanvas.height = canvasHeight;
+        const ctx = offscreenCanvas.getContext('2d');
+
+        // 设置文字样式
+        ctx.font = `${fontSize}px ${fontFamily}`;
+        ctx.fillStyle = color;
+        ctx.globalAlpha = opacity;
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+
+        // 计算文字尺寸
+        const textMetrics = ctx.measureText(textContent);
+        const textWidth = textMetrics.width;
+        const textHeight = fontSize;
+
+        // 计算旋转后需要覆盖的范围（扩展画布对角线长度以确保全覆盖）
+        const diagonal = Math.sqrt(canvasWidth * canvasWidth + canvasHeight * canvasHeight);
+        const angleRad = (angle * Math.PI) / 180;
+
+        // 保存画布状态
+        ctx.save();
+
+        // 将原点移动到画布中心
+        ctx.translate(canvasWidth / 2, canvasHeight / 2);
+
+        // 旋转画布
+        ctx.rotate(angleRad);
+
+        // 计算需要绘制的行列数（确保覆盖整个旋转后的区域）
+        const stepX = textWidth + spacing;
+        const stepY = textHeight + spacing;
+        const cols = Math.ceil(diagonal / stepX) + 2;
+        const rows = Math.ceil(diagonal / stepY) + 2;
+
+        // 从中心向四周绘制水印
+        for (let row = -rows; row <= rows; row++) {
+            for (let col = -cols; col <= cols; col++) {
+                const x = col * stepX;
+                const y = row * stepY;
+                ctx.fillText(textContent, x, y);
+            }
+        }
+
+        // 恢复画布状态
+        ctx.restore();
+
+        // 将离屏画布转换为 fabric.Image 并添加到主画布
+        const watermarkDataUrl = offscreenCanvas.toDataURL('image/png');
+        fabric.Image.fromURL(watermarkDataUrl, (watermarkImg) => {
+            watermarkImg.set({
+                left: 0,
+                top: 0,
+                selectable: true,
+                evented: true,
+                // 标记为水印图层，便于识别
+                isWatermarkLayer: true
+            });
+            canvas.add(watermarkImg);
+            canvas.renderAll();
+            historyManager.push(canvas);
+        });
+    },
+
     // 安全字体栈定义，确保跨平台兼容
     _getFontStacks() {
         return {
@@ -2509,6 +2581,22 @@ ${description}
                         <input type="range" min="0" max="100" value="${activeObj.opacity * 100}" id="text-opacity">
                         <span id="text-opacity-value" style="color:#3b82f6;">${Math.round(activeObj.opacity * 100)}%</span>
                     </div>
+                    <hr style="border:none; border-top:1px solid #444; margin:15px 0;">
+                    <div class="prop-item">
+                        <label style="color:#34a853; font-weight:bold;">📋 全图平铺水印</label>
+                        <p style="font-size:11px; color:#888; margin:5px 0 10px 0;">将当前文字以平铺方式覆盖整个图片</p>
+                    </div>
+                    <div class="prop-item">
+                        <label>旋转角度</label>
+                        <input type="range" min="-45" max="45" value="-30" id="watermark-angle">
+                        <span id="watermark-angle-value" style="color:#34a853;">-30°</span>
+                    </div>
+                    <div class="prop-item">
+                        <label>水印间距</label>
+                        <input type="range" min="50" max="300" value="120" id="watermark-spacing">
+                        <span id="watermark-spacing-value" style="color:#34a853;">120px</span>
+                    </div>
+                    <button id="apply-tiled-watermark" class="primary-btn" style="width:100%; margin-top:10px; background:#34a853;">应用平铺水印</button>
 `;
 
                 // 字体选择
@@ -2538,6 +2626,33 @@ ${description}
                     activeObj.set('opacity', opacity);
                     document.getElementById('text-opacity-value').textContent = Math.round(opacity * 100) + '%';
                     canvas.renderAll();
+                });
+
+                // 水印旋转角度
+                document.getElementById('watermark-angle').addEventListener('input', (e) => {
+                    document.getElementById('watermark-angle-value').textContent = e.target.value + '°';
+                });
+
+                // 水印间距
+                document.getElementById('watermark-spacing').addEventListener('input', (e) => {
+                    document.getElementById('watermark-spacing-value').textContent = e.target.value + 'px';
+                });
+
+                // 应用平铺水印
+                document.getElementById('apply-tiled-watermark').addEventListener('click', () => {
+                    const textContent = activeObj.text;
+                    const fontFamily = activeObj.fontFamily;
+                    const color = activeObj.fill;
+                    const opacity = activeObj.opacity;
+                    const fontSize = activeObj.fontSize;
+                    const angle = parseInt(document.getElementById('watermark-angle').value);
+                    const spacing = parseInt(document.getElementById('watermark-spacing').value);
+
+                    // 移除原始文字对象
+                    canvas.remove(activeObj);
+
+                    // 应用平铺水印
+                    this.applyTiledWatermark(textContent, fontFamily, color, opacity, fontSize, angle, spacing);
                 });
             } else if (activeObj && activeObj.type === 'image' && activeObj !== canvas.getObjects()[0]) {
                 // 图片水印的属性控制
