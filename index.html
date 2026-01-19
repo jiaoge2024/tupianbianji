@@ -90,6 +90,7 @@
                             <h3>插件工具</h3>
                             <button class="tool-btn" data-tool="icon-gen">插件图标</button>
                             <button class="tool-btn" data-tool="ocr">OCR识别</button>
+                            <button class="tool-btn" data-tool="ai-gen">AI生图</button>
                         </div>
                     </div>
 
@@ -141,7 +142,7 @@
         <div class="ocr-modal-content">
             <span class="ocr-close" id="ocr-config-close">&times;</span>
             <h3>🔑 百度OCR API 配置</h3>
-            
+
             <div class="ocr-form">
                 <div class="ocr-form-group">
                     <label for="ocr-api-key">API Key</label>
@@ -195,6 +196,71 @@
             <div class="ocr-result-actions">
                 <button id="ocr-copy-result" class="ocr-secondary-btn">📋 复制文字</button>
                 <button id="ocr-close-result" class="ocr-primary-btn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 生图配置 Modal -->
+    <div id="aigen-config-modal" class="ocr-modal" style="display: none;">
+        <div class="ocr-modal-content">
+            <span class="ocr-close" id="aigen-config-close">&times;</span>
+            <h3>🎨 ModelScope AI 生图配置</h3>
+
+            <div class="ocr-form">
+                <div class="ocr-form-group">
+                    <label for="aigen-api-token">API Token</label>
+                    <input type="password" id="aigen-api-token" placeholder="请输入 ModelScope API Token">
+                </div>
+                <button id="aigen-save-config" class="ocr-primary-btn">保存配置</button>
+            </div>
+
+            <div class="ocr-help-section">
+                <div class="ocr-help-toggle" id="aigen-help-toggle">
+                    <span>📖 如何获取 API Token？</span>
+                    <span class="ocr-toggle-icon">▼</span>
+                </div>
+                <div class="ocr-help-content" id="aigen-help-content" style="display: none;">
+                    <ol>
+                        <li>访问 <a href="https://modelscope.cn/" target="_blank">ModelScope 官网</a></li>
+                        <li>注册/登录 ModelScope 账号</li>
+                        <li>点击右上角头像，进入「我的主页」</li>
+                        <li>在左侧菜单点击「访问令牌」</li>
+                        <li>点击「创建新的访问令牌」</li>
+                        <li>复制 Token 填入上方配置框</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="ocr-security-notice">
+                <h4>⚠️ 安全提示</h4>
+                <ul>
+                    <li>Token 仅存储在浏览器本地，不会上传到任何服务器</li>
+                    <li>请勿将 Token 分享给他人</li>
+                    <li>建议仅在个人设备上使用此功能</li>
+                    <li>如怀疑 Token 泄露，请立即在 ModelScope 控制台重置</li>
+                    <li>ModelScope 图像生成服务可能产生费用，请合理使用</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 生图结果 Modal -->
+    <div id="aigen-result-modal" class="ocr-modal" style="display: none;">
+        <div class="ocr-modal-content aigen-result-content">
+            <span class="ocr-close" id="aigen-result-close">&times;</span>
+            <h3>🎨 AI 生成结果</h3>
+            <div class="aigen-result-area">
+                <div id="aigen-result-loading" class="aigen-loading" style="display: none;">
+                    <div class="aigen-spinner"></div>
+                    <p>正在生成中，请稍候...</p>
+                    <p id="aigen-status-text" style="font-size: 12px; color: #888;"></p>
+                </div>
+                <img id="aigen-result-image" src="" alt="生成的图片"
+                    style="display: none; max-width: 100%; border-radius: 8px;">
+            </div>
+            <div class="ocr-result-actions">
+                <button id="aigen-use-image" class="ocr-primary-btn" style="display: none;">📥 使用此图片</button>
+                <button id="aigen-close-result" class="ocr-secondary-btn">关闭</button>
             </div>
         </div>
     </div>

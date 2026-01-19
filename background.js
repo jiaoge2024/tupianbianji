@@ -75,4 +75,105 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         return true; // 保持消息通道开放以进行异步响应
     }
+
+    /**
+     * AI 图像生成 API 消息处理 (ModelScope)
+     */
+    if (request.action === 'startAIGeneration') {
+        // 发起 AI 图像生成任务
+        const { apiToken, prompt, model, size } = request;
+        const baseUrl = 'https://api-inference.modelscope.cn/v1/images/generations';
+
+        fetch(baseUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiToken}`,
+                'Content-Type': 'application/json',
+                'X-ModelScope-Async-Mode': 'true'
+            },
+            body: JSON.stringify({
+                model: model || 'Qwen/Qwen-Image-2512',
+                prompt: prompt,
+                size: size || '1024x1024'
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    sendResponse({ success: false, error: data.error.message || data.error });
+                } else if (data.task_id) {
+                    sendResponse({ success: true, taskId: data.task_id });
+                } else {
+                    sendResponse({ success: false, error: '未知响应格式' });
+                }
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+
+        return true; // 保持消息通道开放以进行异步响应
+    }
+
+    if (request.action === 'pollAIGeneration') {
+        // 轮询 AI 图像生成任务状态
+        const { apiToken, taskId } = request;
+        const pollUrl = `https://api-inference.modelscope.cn/v1/tasks/${taskId}`;
+
+        fetch(pollUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apiToken}`,
+                'Content-Type': 'application/json',
+                'X-ModelScope-Task-Type': 'image_generation'
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    sendResponse({ success: false, error: data.error.message || data.error });
+                } else {
+                    sendResponse({
+                        success: true,
+                        status: data.task_status,
+                        images: data.output_images || [],
+                        message: data.message || ''
+                    });
+                }
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+
+        return true; // 保持消息通道开放以进行异步响应
+    }
+
+    /**
+     * 下载远程图片并转换为 base64 (用于绕过 CORS)
+     */
+    if (request.action === 'fetchImageAsBase64') {
+        const { imageUrl } = request;
+
+        fetch(imageUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    sendResponse({ success: true, dataUrl: reader.result });
+                };
+                reader.onerror = () => {
+                    sendResponse({ success: false, error: '读取图片数据失败' });
+                };
+                reader.readAsDataURL(blob);
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+
+        return true; // 保持消息通道开放以进行异步响应
+    }
 });

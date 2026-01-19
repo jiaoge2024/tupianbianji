@@ -26,7 +26,10 @@
     "clipboardWrite"
   ],
   "host_permissions": [
-    "https://aip.baidubce.com/*"
+    "https://aip.baidubce.com/*",
+    "https://api-inference.modelscope.cn/*",
+    "https://*.oss-cn-hangzhou.aliyuncs.com/*",
+    "https://*.aliyuncs.com/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"

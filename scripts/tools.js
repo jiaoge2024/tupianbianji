@@ -105,6 +105,9 @@ const toolManager = {
             case 'ocr':
                 this.initOCR();
                 break;
+            case 'ai-gen':
+                this.initAIGen();
+                break;
         }
     },
 
@@ -2191,6 +2194,53 @@ ${description}
             document.getElementById('ocr-settings-btn').addEventListener('click', () => {
                 this.showOCRConfigModal();
             });
+        } else if (tool === 'ai-gen') {
+            const hasConfig = localStorage.getItem('aigenApiToken');
+            const statusClass = hasConfig ? 'success' : '';
+            const statusText = hasConfig ? '✓ API 已配置' : '⚠ 请先配置 API Token';
+
+            panel.innerHTML = `
+                <div class="aigen-panel-info ${statusClass}">
+                    ${statusText}
+                </div>
+                <div class="prop-item">
+                    <label>提示词 (Prompt)</label>
+                    <textarea id="aigen-prompt" class="aigen-prompt-input" placeholder="描述你想生成的图片，例如：一只金色的猫咪在阳光下玩耍"></textarea>
+                </div>
+                <div class="prop-item">
+                    <label>图片尺寸</label>
+                    <select id="aigen-size" style="width:100%; padding:8px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:6px; font-size:14px;">
+                        <option value="1024x1024" selected>1:1 (1024×1024)</option>
+                        <option value="768x1024">3:4 (768×1024)</option>
+                        <option value="576x1024">9:16 (576×1024)</option>
+                        <option value="1024x768">4:3 (1024×768)</option>
+                        <option value="1024x576">16:9 (1024×576)</option>
+                    </select>
+                </div>
+                <div class="prop-item">
+                    <button id="aigen-generate-btn" class="primary-btn" style="width:100%;" ${!hasConfig ? 'disabled' : ''}>🎨 开始生成</button>
+                </div>
+                <div class="prop-item" style="margin-top:10px;">
+                    <button id="aigen-settings-btn" class="secondary-btn" style="width:100%;">⚙️ API 设置</button>
+                </div>
+                <div class="prop-item" style="margin-top:15px;">
+                    <p style="font-size:11px; color:#888; text-align:center;">使用 ModelScope Qwen-Image 生成图片</p>
+                </div>
+`;
+
+            document.getElementById('aigen-generate-btn').addEventListener('click', () => {
+                const prompt = document.getElementById('aigen-prompt').value.trim();
+                if (!prompt) {
+                    alert('请输入提示词');
+                    return;
+                }
+                const size = document.getElementById('aigen-size').value;
+                this.callAIGenAPI(prompt, size);
+            });
+
+            document.getElementById('aigen-settings-btn').addEventListener('click', () => {
+                this.showAIGenConfigModal();
+            });
         } else if (tool === 'mosaic') {
             panel.innerHTML = `
                 <div class="prop-item">
@@ -3138,6 +3188,351 @@ ${description}
         if (modal && resultTextarea) {
             resultTextarea.value = text;
             modal.style.display = 'flex';
+        }
+    },
+
+    // ========== AI 图像生成功能 ==========
+    initAIGen() {
+        // 检查是否已配置 API Token
+        const apiToken = localStorage.getItem('aigenApiToken');
+
+        if (!apiToken) {
+            // 显示配置模态框
+            this.showAIGenConfigModal();
+        } else {
+            // 已配置，直接显示 AI 生成操作面板
+            this.updatePropertyPanel('ai-gen');
+        }
+
+        // 设置 AI 生成模态框事件
+        this.setupAIGenModalEvents();
+    },
+
+    showAIGenConfigModal() {
+        const modal = document.getElementById('aigen-config-modal');
+        if (modal) {
+            // 加载已保存的配置
+            const tokenInput = document.getElementById('aigen-api-token');
+            const savedToken = localStorage.getItem('aigenApiToken') || '';
+
+            if (tokenInput) tokenInput.value = savedToken;
+
+            modal.style.display = 'flex';
+        }
+    },
+
+    hideAIGenConfigModal() {
+        const modal = document.getElementById('aigen-config-modal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    },
+
+    setupAIGenModalEvents() {
+        // 避免重复绑定事件
+        if (this._aigenEventsSetup) return;
+        this._aigenEventsSetup = true;
+
+        // 配置模态框事件
+        const configModal = document.getElementById('aigen-config-modal');
+        const configClose = document.getElementById('aigen-config-close');
+        const saveConfig = document.getElementById('aigen-save-config');
+        const helpToggle = document.getElementById('aigen-help-toggle');
+        const helpContent = document.getElementById('aigen-help-content');
+
+        if (configClose) {
+            configClose.addEventListener('click', () => this.hideAIGenConfigModal());
+        }
+
+        if (configModal) {
+            configModal.addEventListener('click', (e) => {
+                if (e.target === configModal) this.hideAIGenConfigModal();
+            });
+        }
+
+        if (saveConfig) {
+            saveConfig.addEventListener('click', () => {
+                const apiToken = document.getElementById('aigen-api-token').value.trim();
+
+                if (!apiToken) {
+                    alert('请填写 API Token');
+                    return;
+                }
+
+                // 保存到 localStorage
+                localStorage.setItem('aigenApiToken', apiToken);
+
+                alert('配置保存成功！');
+                this.hideAIGenConfigModal();
+                this.updatePropertyPanel('ai-gen');
+            });
+        }
+
+        if (helpToggle && helpContent) {
+            helpToggle.addEventListener('click', () => {
+                const isVisible = helpContent.style.display !== 'none';
+                helpContent.style.display = isVisible ? 'none' : 'block';
+                const icon = helpToggle.querySelector('.ocr-toggle-icon');
+                if (icon) {
+                    icon.classList.toggle('expanded', !isVisible);
+                }
+            });
+        }
+
+        // 结果模态框事件
+        const resultModal = document.getElementById('aigen-result-modal');
+        const resultClose = document.getElementById('aigen-result-close');
+        const closeResult = document.getElementById('aigen-close-result');
+        const useImage = document.getElementById('aigen-use-image');
+
+        const hideResultModal = () => {
+            if (resultModal) resultModal.style.display = 'none';
+        };
+
+        if (resultClose) {
+            resultClose.addEventListener('click', hideResultModal);
+        }
+
+        if (closeResult) {
+            closeResult.addEventListener('click', hideResultModal);
+        }
+
+        if (resultModal) {
+            resultModal.addEventListener('click', (e) => {
+                if (e.target === resultModal) hideResultModal();
+            });
+        }
+
+        if (useImage) {
+            useImage.addEventListener('click', () => {
+                const resultImage = document.getElementById('aigen-result-image');
+                if (resultImage && resultImage.src) {
+                    this.loadAIGenImage(resultImage.src);
+                    hideResultModal();
+                }
+            });
+        }
+    },
+
+    async callAIGenAPI(prompt, size = '1024x1024') {
+        const apiToken = localStorage.getItem('aigenApiToken');
+        if (!apiToken) {
+            alert('请先配置 API Token');
+            this.showAIGenConfigModal();
+            return;
+        }
+
+        const btn = document.getElementById('aigen-generate-btn');
+        const originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '生成中...';
+        }
+
+        // 显示结果模态框和加载状态
+        const resultModal = document.getElementById('aigen-result-modal');
+        const loadingDiv = document.getElementById('aigen-result-loading');
+        const resultImage = document.getElementById('aigen-result-image');
+        const useImageBtn = document.getElementById('aigen-use-image');
+        const statusText = document.getElementById('aigen-status-text');
+
+        if (resultModal) resultModal.style.display = 'flex';
+        if (loadingDiv) loadingDiv.style.display = 'block';
+        if (resultImage) resultImage.style.display = 'none';
+        if (useImageBtn) useImageBtn.style.display = 'none';
+        if (statusText) statusText.textContent = '正在发起生成任务...';
+
+        try {
+            // 发起生成任务
+            const startResult = await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    action: 'startAIGeneration',
+                    apiToken: apiToken,
+                    prompt: prompt,
+                    size: size,
+                    model: 'Qwen/Qwen-Image-2512'
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
+
+                    if (response && response.success) {
+                        resolve(response.taskId);
+                    } else {
+                        reject(new Error(response ? response.error : '发起生成任务失败'));
+                    }
+                });
+            });
+
+            const taskId = startResult;
+            if (statusText) statusText.textContent = '任务已创建，等待生成...';
+
+            // 轮询获取结果
+            const maxPolls = 60; // 最多轮询60次（5分钟）
+            let pollCount = 0;
+
+            const pollResult = async () => {
+                return new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({
+                        action: 'pollAIGeneration',
+                        apiToken: apiToken,
+                        taskId: taskId
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                            return;
+                        }
+
+                        if (response && response.success) {
+                            resolve(response);
+                        } else {
+                            reject(new Error(response ? response.error : '查询任务状态失败'));
+                        }
+                    });
+                });
+            };
+
+            while (pollCount < maxPolls) {
+                await new Promise(r => setTimeout(r, 5000)); // 每5秒轮询一次
+                pollCount++;
+
+                if (statusText) statusText.textContent = `正在生成中... (${pollCount}/${maxPolls})`;
+
+                const pollResponse = await pollResult();
+
+                if (pollResponse.status === 'SUCCEED') {
+                    // 生成成功
+                    if (pollResponse.images && pollResponse.images.length > 0) {
+                        const imageUrl = pollResponse.images[0];
+                        if (loadingDiv) loadingDiv.style.display = 'none';
+                        if (resultImage) {
+                            resultImage.src = imageUrl;
+                            resultImage.style.display = 'block';
+                        }
+                        if (useImageBtn) useImageBtn.style.display = 'inline-block';
+
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.textContent = originalText;
+                        }
+                        return;
+                    } else {
+                        throw new Error('生成成功但未返回图片');
+                    }
+                } else if (pollResponse.status === 'FAILED') {
+                    throw new Error(pollResponse.message || '图像生成失败');
+                }
+                // 其他状态继续轮询
+            }
+
+            throw new Error('生成超时，请稍后重试');
+
+        } catch (error) {
+            console.error('AI 图像生成失败:', error);
+
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (statusText) statusText.textContent = '';
+
+            // 保持模态框打开并显示错误
+            alert(`AI 图像生成失败: ${error.message}`);
+
+            // 如果是 token 相关错误，提示重新配置
+            if (error.message.includes('Token') || error.message.includes('token') || error.message.includes('401') || error.message.includes('认证')) {
+                localStorage.removeItem('aigenApiToken');
+                this.updatePropertyPanel('ai-gen');
+            }
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    },
+
+    async loadAIGenImage(imageUrl) {
+        try {
+            // 通过 background script 下载图片，绕过 CORS
+            const response = await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    action: 'fetchImageAsBase64',
+                    imageUrl: imageUrl
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
+                    if (response && response.success) {
+                        resolve(response.dataUrl);
+                    } else {
+                        reject(new Error(response ? response.error : '下载图片失败'));
+                    }
+                });
+            });
+
+            const dataUrl = response;
+
+            fabric.Image.fromURL(dataUrl, (img) => {
+                if (!img) {
+                    alert('图片加载失败，请重试');
+                    return;
+                }
+
+                // 确保画布已初始化并显示
+                const welcomeScreen = document.getElementById('welcome-screen');
+                const canvasWrapper = document.getElementById('canvas-wrapper');
+                const btnReset = document.getElementById('btn-reset');
+                const btnCopy = document.getElementById('btn-copy');
+                const btnDownload = document.getElementById('btn-download');
+                const exportControls = document.querySelector('.export-controls');
+
+                if (!window.canvas) {
+                    window.canvas = new fabric.Canvas('main-canvas', {
+                        backgroundColor: '#1a1a1a',
+                        preserveObjectStacking: true,
+                        stopContextMenu: true
+                    });
+                }
+
+                if (welcomeScreen) welcomeScreen.style.display = 'none';
+                if (canvasWrapper) canvasWrapper.style.display = 'block';
+                if (btnReset) btnReset.style.display = 'block';
+                if (btnCopy) btnCopy.style.display = 'block';
+                if (btnDownload) btnDownload.style.display = 'block';
+                if (exportControls) exportControls.style.display = 'flex';
+
+                // 清空画布
+                canvas.clear();
+
+                // 调整尺寸以适应画布区域
+                const dropZone = document.getElementById('drop-zone');
+                const maxWidth = dropZone ? dropZone.offsetWidth - 100 : 800;
+                const maxHeight = dropZone ? dropZone.offsetHeight - 100 : 600;
+
+                let scale = 1;
+                if (img.width > maxWidth || img.height > maxHeight) {
+                    scale = Math.min(maxWidth / img.width, maxHeight / img.height);
+                }
+
+                canvas.setDimensions({ width: img.width * scale, height: img.height * scale });
+                img.scale(scale);
+
+                canvas.add(img);
+                canvas.centerObject(img);
+                canvas.setActiveObject(img);
+                canvas.renderAll();
+
+                // 添加到历史记录
+                if (typeof historyManager !== 'undefined') {
+                    historyManager.clear();
+                    historyManager.push(canvas);
+                }
+
+                alert('✅ 图片已加载到画布，可以开始编辑！');
+            });
+        } catch (error) {
+            console.error('加载图片失败:', error);
+            alert(`加载图片失败: ${error.message}`);
         }
     }
 };

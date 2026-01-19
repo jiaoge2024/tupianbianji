@@ -968,3 +968,84 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(255, 69, 58, 0.1);
     border-color: rgba(255, 69, 58, 0.2);
 }
+
+/* ==================== AI Generation Styles ==================== */
+.aigen-result-content {
+    max-width: 600px;
+}
+
+.aigen-result-area {
+    margin-bottom: 20px;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.aigen-loading {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.aigen-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top: 3px solid var(--accent-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.aigen-loading p {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin: 8px 0;
+}
+
+.aigen-prompt-input {
+    width: 100%;
+    padding: 12px 14px;
+    background: rgba(118, 118, 128, 0.12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-m);
+    color: var(--text-main);
+    font-size: 14px;
+    font-family: var(--font-stack);
+    resize: vertical;
+    min-height: 80px;
+    transition: all 0.2s ease;
+}
+
+.aigen-prompt-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    background: rgba(118, 118, 128, 0.2);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+}
+
+.aigen-prompt-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* AI Generation Panel Info */
+.aigen-panel-info {
+    background: rgba(138, 43, 226, 0.1);
+    border: 1px solid rgba(138, 43, 226, 0.2);
+    border-radius: var(--radius-s);
+    padding: 12px;
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+}
+
+.aigen-panel-info.success {
+    background: rgba(48, 209, 88, 0.1);
+    border-color: rgba(48, 209, 88, 0.2);
+}
