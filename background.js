@@ -176,4 +176,36 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         return true; // 保持消息通道开放以进行异步响应
     }
+
+    /**
+     * 下载模型文件（用于 AI 模型下载，绕过 CORS）
+     */
+    if (request.action === 'downloadModelBuffer') {
+        const { modelUrl } = request;
+
+        fetch(modelUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`模型下载失败: HTTP ${response.status}`);
+                }
+                return response.arrayBuffer();
+            })
+            .then(buffer => {
+                // 将 ArrayBuffer 转为 base64 发送
+                const uint8Array = new Uint8Array(buffer);
+                let binary = '';
+                const chunkSize = 65536;
+                for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                    const chunk = uint8Array.subarray(i, i + chunkSize);
+                    binary += String.fromCharCode.apply(null, chunk);
+                }
+                const base64 = btoa(binary);
+                sendResponse({ success: true, modelBase64: base64 });
+            })
+            .catch(error => {
+                sendResponse({ success: false, error: error.message });
+            });
+
+        return true; // 保持消息通道开放以进行异步响应
+    }
 });

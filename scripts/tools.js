@@ -108,6 +108,9 @@ const toolManager = {
             case 'ai-gen':
                 this.initAIGen();
                 break;
+            case 'magic-eraser':
+                this.initMagicEraser();
+                break;
         }
     },
 
@@ -144,6 +147,9 @@ const toolManager = {
         canvas.off('mouse:move', this._mosaicMouseMoveHandler);
         canvas.off('mouse:up', this._mosaicMouseUpHandler);
         canvas.off('mouse:out', this._mosaicMouseOutHandler);
+
+        // 清理消除笔相关元素
+        this.cleanupMagicEraser();
 
         canvas.forEachObject(obj => {
             if (obj.selectable === false && obj.evented === false) return;
@@ -2391,6 +2397,57 @@ ${description}
                 const cropPercent = parseInt(document.getElementById('crop-percent-slider').value);
                 this.applySmartCrop(selectedPosition, cropPercent);
             });
+        } else if (tool === 'magic-eraser') {
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label style="color:#ff6b6b; font-weight:bold;">🪄 消除笔</label>
+                    <p style="font-size:11px; color:#888; margin:8px 0;">用画笔涂抹要消除的人物或物品</p>
+                </div>
+                <div class="prop-item">
+                    <label>画笔大小</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="range" min="5" max="80" value="30" id="eraser-brush-size" style="flex:1;">
+                        <span id="eraser-brush-size-value" style="color:#ff6b6b; min-width:40px;">30px</span>
+                    </div>
+                </div>
+                <div id="eraser-progress-container" style="display:none; margin-top:10px;">
+                    <div style="background:#333; border-radius:4px; height:8px; overflow:hidden;">
+                        <div id="eraser-progress-bar" style="background:linear-gradient(90deg, #ff6b6b, #ee5a5a); height:100%; width:0%; transition:width 0.3s;"></div>
+                    </div>
+                    <p id="eraser-progress-text" style="font-size:11px; color:#888; margin-top:5px; text-align:center;">准备中...</p>
+                </div>
+                <button id="apply-magic-eraser" class="primary-btn" style="width:100%; margin-top:12px; background:linear-gradient(135deg, #ff6b6b, #ee5a5a);">✨ 应用消除</button>
+                <button id="clear-eraser-mask" class="secondary-btn" style="width:100%; margin-top:8px;">🗑️ 清除涂抹</button>
+                <p style="font-size:10px; color:#666; margin-top:12px; line-height:1.5;">
+                    提示：首次使用需下载 AI 模型（约200MB），模型会缓存到本地，下次使用无需重新下载。
+                </p>
+`;
+
+            // 画笔大小调节
+            const brushSizeInput = document.getElementById('eraser-brush-size');
+            const brushSizeValue = document.getElementById('eraser-brush-size-value');
+
+            brushSizeInput.addEventListener('input', (e) => {
+                const size = parseInt(e.target.value);
+                brushSizeValue.textContent = size + 'px';
+                this.eraserBrushSize = size;
+
+                // 更新画笔预览大小
+                if (this.eraserBrushPreview) {
+                    this.eraserBrushPreview.style.width = size + 'px';
+                    this.eraserBrushPreview.style.height = size + 'px';
+                }
+            });
+
+            // 应用消除
+            document.getElementById('apply-magic-eraser').addEventListener('click', () => {
+                this.applyMagicEraser();
+            });
+
+            // 清除涂抹
+            document.getElementById('clear-eraser-mask').addEventListener('click', () => {
+                this.clearEraserMask();
+            });
         } else if (tool === 'sticker') {
             const stickers = this._getStickerList();
             const stickerButtons = stickers.map(s =>
@@ -3533,6 +3590,293 @@ ${description}
         } catch (error) {
             console.error('加载图片失败:', error);
             alert(`加载图片失败: ${error.message}`);
+        }
+    },
+
+    // ==================== Magic Eraser (消除笔) ====================
+
+    eraserMaskCanvas: null,
+    eraserMaskCtx: null,
+    eraserBrushSize: 30,
+    eraserIsDrawing: false,
+    eraserBrushPreview: null,
+
+    initMagicEraser() {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) {
+            alert('请先导入图片');
+            this.activate('select');
+            return;
+        }
+
+        // 禁用画布选择
+        canvas.selection = false;
+        canvas.forEachObject(obj => {
+            obj.selectable = false;
+            obj.evented = false;
+        });
+
+        // 创建掩码层 Canvas
+        this.createEraserMaskLayer();
+
+        // 创建画笔预览元素
+        this.createBrushPreview();
+
+        // 绑定事件
+        this.bindEraserEvents();
+
+        this.updatePropertyPanel('magic-eraser');
+    },
+
+    createEraserMaskLayer() {
+        // 移除已存在的掩码层
+        const existingMask = document.getElementById('eraser-mask-canvas');
+        if (existingMask) existingMask.remove();
+
+        const canvasWrapper = document.getElementById('canvas-wrapper');
+        const fabricCanvas = document.querySelector('.canvas-container');
+
+        if (!fabricCanvas) return;
+
+        // 获取 fabric canvas 的位置和尺寸
+        const rect = fabricCanvas.getBoundingClientRect();
+
+        this.eraserMaskCanvas = document.createElement('canvas');
+        this.eraserMaskCanvas.id = 'eraser-mask-canvas';
+        this.eraserMaskCanvas.width = canvas.width;
+        this.eraserMaskCanvas.height = canvas.height;
+        this.eraserMaskCanvas.style.cssText = `
+            position: absolute;
+            left: ${fabricCanvas.offsetLeft}px;
+            top: ${fabricCanvas.offsetTop}px;
+            width: ${canvas.width}px;
+            height: ${canvas.height}px;
+            cursor: crosshair;
+            z-index: 100;
+            pointer-events: auto;
+        `;
+
+        this.eraserMaskCtx = this.eraserMaskCanvas.getContext('2d');
+        this.eraserMaskCtx.fillStyle = 'black';
+        this.eraserMaskCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+        canvasWrapper.appendChild(this.eraserMaskCanvas);
+    },
+
+    createBrushPreview() {
+        // 移除已存在的预览
+        const existing = document.getElementById('eraser-brush-preview');
+        if (existing) existing.remove();
+
+        this.eraserBrushPreview = document.createElement('div');
+        this.eraserBrushPreview.id = 'eraser-brush-preview';
+        this.eraserBrushPreview.style.cssText = `
+            position: fixed;
+            width: ${this.eraserBrushSize}px;
+            height: ${this.eraserBrushSize}px;
+            border-radius: 50%;
+            background: rgba(255, 80, 80, 0.3);
+            border: 2px solid rgba(255, 80, 80, 0.8);
+            pointer-events: none;
+            z-index: 9999;
+            display: none;
+            transform: translate(-50%, -50%);
+        `;
+        document.body.appendChild(this.eraserBrushPreview);
+    },
+
+    bindEraserEvents() {
+        if (!this.eraserMaskCanvas) return;
+
+        const maskCanvas = this.eraserMaskCanvas;
+
+        this._eraserMouseDown = (e) => {
+            this.eraserIsDrawing = true;
+            this.drawEraserBrush(e);
+        };
+
+        this._eraserMouseMove = (e) => {
+            // 更新画笔预览位置
+            if (this.eraserBrushPreview) {
+                this.eraserBrushPreview.style.left = e.clientX + 'px';
+                this.eraserBrushPreview.style.top = e.clientY + 'px';
+                this.eraserBrushPreview.style.display = 'block';
+            }
+
+            if (this.eraserIsDrawing) {
+                this.drawEraserBrush(e);
+            }
+        };
+
+        this._eraserMouseUp = () => {
+            this.eraserIsDrawing = false;
+        };
+
+        this._eraserMouseLeave = () => {
+            this.eraserIsDrawing = false;
+            if (this.eraserBrushPreview) {
+                this.eraserBrushPreview.style.display = 'none';
+            }
+        };
+
+        maskCanvas.addEventListener('mousedown', this._eraserMouseDown);
+        maskCanvas.addEventListener('mousemove', this._eraserMouseMove);
+        maskCanvas.addEventListener('mouseup', this._eraserMouseUp);
+        maskCanvas.addEventListener('mouseleave', this._eraserMouseLeave);
+    },
+
+    drawEraserBrush(e) {
+        if (!this.eraserMaskCtx || !this.eraserMaskCanvas) return;
+
+        const rect = this.eraserMaskCanvas.getBoundingClientRect();
+        const scaleX = this.eraserMaskCanvas.width / rect.width;
+        const scaleY = this.eraserMaskCanvas.height / rect.height;
+
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        // 白色表示需要修复的区域
+        this.eraserMaskCtx.fillStyle = 'white';
+        this.eraserMaskCtx.beginPath();
+        this.eraserMaskCtx.arc(x, y, this.eraserBrushSize / 2, 0, Math.PI * 2);
+        this.eraserMaskCtx.fill();
+    },
+
+    clearEraserMask() {
+        if (this.eraserMaskCtx && this.eraserMaskCanvas) {
+            this.eraserMaskCtx.fillStyle = 'black';
+            this.eraserMaskCtx.fillRect(0, 0, this.eraserMaskCanvas.width, this.eraserMaskCanvas.height);
+        }
+    },
+
+    cleanupMagicEraser() {
+        // 移除掩码层
+        const maskCanvas = document.getElementById('eraser-mask-canvas');
+        if (maskCanvas) maskCanvas.remove();
+
+        // 移除画笔预览
+        const preview = document.getElementById('eraser-brush-preview');
+        if (preview) preview.remove();
+
+        // 清理事件
+        if (this.eraserMaskCanvas) {
+            this.eraserMaskCanvas.removeEventListener('mousedown', this._eraserMouseDown);
+            this.eraserMaskCanvas.removeEventListener('mousemove', this._eraserMouseMove);
+            this.eraserMaskCanvas.removeEventListener('mouseup', this._eraserMouseUp);
+            this.eraserMaskCanvas.removeEventListener('mouseleave', this._eraserMouseLeave);
+        }
+
+        this.eraserMaskCanvas = null;
+        this.eraserMaskCtx = null;
+        this.eraserBrushPreview = null;
+    },
+
+    async applyMagicEraser() {
+        if (!this.eraserMaskCanvas) {
+            alert('请先涂抹要消除的区域');
+            return;
+        }
+
+        // 检查是否有涂抹区域
+        const maskData = this.eraserMaskCtx.getImageData(0, 0, this.eraserMaskCanvas.width, this.eraserMaskCanvas.height);
+        let hasMask = false;
+        for (let i = 0; i < maskData.data.length; i += 4) {
+            if (maskData.data[i] > 128) { // 白色区域
+                hasMask = true;
+                break;
+            }
+        }
+
+        if (!hasMask) {
+            alert('请先用画笔涂抹要消除的区域');
+            return;
+        }
+
+        const btn = document.getElementById('apply-magic-eraser');
+        const progressContainer = document.getElementById('eraser-progress-container');
+        const progressBar = document.getElementById('eraser-progress-bar');
+        const progressText = document.getElementById('eraser-progress-text');
+
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '处理中...';
+        }
+
+        try {
+            // 检查 LamaInpaint 是否可用
+            if (typeof LamaInpaint === 'undefined') {
+                throw new Error('LaMa 模块未加载，请刷新页面重试');
+            }
+
+            // 显示进度条
+            if (progressContainer) progressContainer.style.display = 'block';
+
+            // 加载模型
+            if (progressText) progressText.textContent = '正在加载 AI 模型...';
+
+            await LamaInpaint.loadModel((progress) => {
+                if (progressBar) progressBar.style.width = progress + '%';
+                if (progressText) {
+                    if (progress < 100) {
+                        progressText.textContent = `下载模型中... ${progress}%`;
+                    } else {
+                        progressText.textContent = '模型加载完成';
+                    }
+                }
+            });
+
+            if (progressText) progressText.textContent = 'AI 正在处理图片...';
+
+            // 获取原始图像 Canvas
+            const imageCanvas = document.createElement('canvas');
+            imageCanvas.width = canvas.width;
+            imageCanvas.height = canvas.height;
+            const imageCtx = imageCanvas.getContext('2d');
+
+            // 将 fabric canvas 内容绘制到临时 canvas
+            const dataURL = canvas.toDataURL('image/png');
+            const img = new Image();
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = dataURL;
+            });
+            imageCtx.drawImage(img, 0, 0);
+
+            // 执行修复
+            const resultCanvas = await LamaInpaint.run(imageCanvas, this.eraserMaskCanvas);
+
+            // 将结果放回 fabric canvas
+            const resultDataURL = resultCanvas.toDataURL('image/png');
+
+            fabric.Image.fromURL(resultDataURL, (fabricImg) => {
+                // 缩放回原始尺寸
+                fabricImg.scaleX = canvas.width / LamaInpaint.INPUT_SIZE;
+                fabricImg.scaleY = canvas.height / LamaInpaint.INPUT_SIZE;
+
+                canvas.clear();
+                canvas.add(fabricImg);
+                canvas.centerObject(fabricImg);
+                canvas.renderAll();
+
+                historyManager.push(canvas);
+
+                // 清理
+                this.cleanupMagicEraser();
+                this.activate('select');
+
+                alert('✨ 消除完成！');
+            });
+
+        } catch (error) {
+            console.error('[MagicEraser] 处理失败:', error);
+            alert(`消除失败: ${error.message}`);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = '✨ 应用消除';
+            }
+            if (progressContainer) progressContainer.style.display = 'none';
         }
     }
 };

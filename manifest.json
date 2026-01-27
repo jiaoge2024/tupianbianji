@@ -29,7 +29,8 @@
     "https://aip.baidubce.com/*",
     "https://api-inference.modelscope.cn/*",
     "https://*.oss-cn-hangzhou.aliyuncs.com/*",
-    "https://*.aliyuncs.com/*"
+    "https://*.aliyuncs.com/*",
+    "https://huggingface.co/*"
   ],
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
@@ -40,7 +41,9 @@
         "lib/mediapipe/*.wasm",
         "lib/mediapipe/*.tflite",
         "lib/mediapipe/*.binarypb",
-        "lib/mediapipe/*.js"
+        "lib/mediapipe/*.js",
+        "lib/ort*.js",
+        "lib/ort*.wasm"
       ],
       "matches": [
         "<all_urls>"

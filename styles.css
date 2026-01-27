@@ -1049,3 +1049,20 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(48, 209, 88, 0.1);
     border-color: rgba(48, 209, 88, 0.2);
 }
+
+/* ==================== Magic Eraser Styles ==================== */
+#eraser-mask-canvas {
+    opacity: 0.4;
+    mix-blend-mode: screen;
+}
+
+#eraser-brush-preview {
+    position: fixed;
+    border-radius: 50%;
+    background: rgba(255, 80, 80, 0.3);
+    border: 2px solid rgba(255, 80, 80, 0.8);
+    pointer-events: none;
+    z-index: 9999;
+    display: none;
+    transform: translate(-50%, -50%);
+}
