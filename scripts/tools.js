@@ -994,20 +994,27 @@ const toolManager = {
         this.mosaicBrush = {
             width: 20,
             blockSize: 10,
+            blurRadius: 5,
+            frostedOpacity: 0.7,
+            type: 'pixel', // 'pixel', 'blur', 'frosted'
             isDrawing: false,
             lastPointer: null,
             _offscreenCanvas: null,
             _offscreenCtx: null,
+            _tempCanvas: null, // 用于高斯模糊的临时画布
 
             // 初始化离屏画布
             _initOffscreen: function () {
                 if (!this._offscreenCanvas) {
                     this._offscreenCanvas = document.createElement('canvas');
                     this._offscreenCtx = this._offscreenCanvas.getContext('2d');
+                    this._tempCanvas = document.createElement('canvas');
                 }
                 // 同步尺寸
                 this._offscreenCanvas.width = canvas.width;
                 this._offscreenCanvas.height = canvas.height;
+                this._tempCanvas.width = canvas.width;
+                this._tempCanvas.height = canvas.height;
                 // 将当前 Fabric.js 画布内容渲染到离屏画布
                 const dataUrl = canvas.toDataURL({ format: 'png' });
                 return new Promise((resolve) => {
@@ -1037,45 +1044,106 @@ const toolManager = {
                 if (w <= 0 || h <= 0) return;
 
                 try {
-                    const imageData = ctx.getImageData(left, top, w, h);
-                    const data = imageData.data;
-
-                    for (let y = 0; y < h; y += this.blockSize) {
-                        for (let x = 0; x < w; x += this.blockSize) {
-                            let r = 0, g = 0, b = 0, count = 0;
-
-                            for (let dy = 0; dy < this.blockSize && y + dy < h; dy++) {
-                                for (let dx = 0; dx < this.blockSize && x + dx < w; dx++) {
-                                    const idx = ((y + dy) * w + (x + dx)) * 4;
-                                    r += data[idx];
-                                    g += data[idx + 1];
-                                    b += data[idx + 2];
-                                    count++;
-                                }
-                            }
-
-                            r = Math.round(r / count);
-                            g = Math.round(g / count);
-                            b = Math.round(b / count);
-
-                            for (let dy = 0; dy < this.blockSize && y + dy < h; dy++) {
-                                for (let dx = 0; dx < this.blockSize && x + dx < w; dx++) {
-                                    const idx = ((y + dy) * w + (x + dx)) * 4;
-                                    data[idx] = r;
-                                    data[idx + 1] = g;
-                                    data[idx + 2] = b;
-                                }
-                            }
-                        }
+                    switch (this.type) {
+                        case 'pixel':
+                            this._applyPixelMosaic(ctx, left, top, w, h);
+                            break;
+                        case 'blur':
+                            this._applyBlurMosaic(ctx, left, top, w, h);
+                            break;
+                        case 'frosted':
+                            this._applyFrostedMosaic(ctx, left, top, w, h);
+                            break;
                     }
-
-                    ctx.putImageData(imageData, left, top);
 
                     // 实时更新显示：将离屏画布的内容更新到 Fabric.js 画布
                     this._updateFabricCanvas();
                 } catch (e) {
                     console.error('马赛克处理错误:', e);
                 }
+            },
+
+            // 纯色块马赛克（像素化）
+            _applyPixelMosaic: function (ctx, left, top, w, h) {
+                const imageData = ctx.getImageData(left, top, w, h);
+                const data = imageData.data;
+
+                for (let y = 0; y < h; y += this.blockSize) {
+                    for (let x = 0; x < w; x += this.blockSize) {
+                        let r = 0, g = 0, b = 0, count = 0;
+
+                        for (let dy = 0; dy < this.blockSize && y + dy < h; dy++) {
+                            for (let dx = 0; dx < this.blockSize && x + dx < w; dx++) {
+                                const idx = ((y + dy) * w + (x + dx)) * 4;
+                                r += data[idx];
+                                g += data[idx + 1];
+                                b += data[idx + 2];
+                                count++;
+                            }
+                        }
+
+                        r = Math.round(r / count);
+                        g = Math.round(g / count);
+                        b = Math.round(b / count);
+
+                        for (let dy = 0; dy < this.blockSize && y + dy < h; dy++) {
+                            for (let dx = 0; dx < this.blockSize && x + dx < w; dx++) {
+                                const idx = ((y + dy) * w + (x + dx)) * 4;
+                                data[idx] = r;
+                                data[idx + 1] = g;
+                                data[idx + 2] = b;
+                            }
+                        }
+                    }
+                }
+
+                ctx.putImageData(imageData, left, top);
+            },
+
+            // 高斯模糊马赛克
+            _applyBlurMosaic: function (ctx, left, top, w, h) {
+                // 使用临时画布进行模糊处理
+                const tempCtx = this._tempCanvas.getContext('2d');
+                
+                // 清除临时画布的对应区域
+                tempCtx.clearRect(0, 0, this._tempCanvas.width, this._tempCanvas.height);
+                
+                // 将当前离屏画布内容复制到临时画布
+                tempCtx.drawImage(this._offscreenCanvas, 0, 0);
+                
+                // 应用高斯模糊
+                tempCtx.filter = `blur(${this.blurRadius}px)`;
+                tempCtx.drawImage(this._offscreenCanvas, left, top, w, h, left, top, w, h);
+                tempCtx.filter = 'none';
+                
+                // 将模糊后的区域复制回主画布
+                const blurredData = tempCtx.getImageData(left, top, w, h);
+                ctx.putImageData(blurredData, left, top);
+            },
+
+            // 毛玻璃效果马赛克
+            _applyFrostedMosaic: function (ctx, left, top, w, h) {
+                // 首先应用高斯模糊
+                this._applyBlurMosaic(ctx, left, top, w, h);
+                
+                // 然后添加噪点和半透明白色覆盖层
+                const imageData = ctx.getImageData(left, top, w, h);
+                const data = imageData.data;
+                
+                const opacity = this.frostedOpacity;
+                const noiseIntensity = 20; // 噪点强度
+                
+                for (let i = 0; i < data.length; i += 4) {
+                    // 添加随机噪点
+                    const noise = (Math.random() - 0.5) * noiseIntensity;
+                    
+                    // 混合白色（毛玻璃效果）
+                    data[i] = Math.min(255, data[i] + noise + (255 - data[i]) * (1 - opacity) * 0.3);
+                    data[i + 1] = Math.min(255, data[i + 1] + noise + (255 - data[i + 1]) * (1 - opacity) * 0.3);
+                    data[i + 2] = Math.min(255, data[i + 2] + noise + (255 - data[i + 2]) * (1 - opacity) * 0.3);
+                }
+                
+                ctx.putImageData(imageData, left, top);
             },
 
             _updateFabricCanvas: function () {
@@ -2250,23 +2318,76 @@ ${description}
         } else if (tool === 'mosaic') {
             panel.innerHTML = `
                 <div class="prop-item">
-                    <label>笔刷大小</label>
-                    <input type="range" min="10" max="100" value="20" id="brush-size">
+                    <label>马赛克效果</label>
+                    <select id="mosaic-type" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="pixel">纯色块 (像素化)</option>
+                        <option value="blur">高斯模糊</option>
+                        <option value="frosted">毛玻璃</option>
+                    </select>
                 </div>
                 <div class="prop-item">
+                    <label>笔刷大小</label>
+                    <input type="range" min="10" max="100" value="20" id="brush-size">
+                    <span id="brush-size-value" style="color:#888; font-size:12px;">20px</span>
+                </div>
+                <div class="prop-item" id="pixel-size-container">
                     <label>像素块大小</label>
                     <input type="range" min="5" max="30" value="10" id="block-size">
+                    <span id="block-size-value" style="color:#888; font-size:12px;">10px</span>
+                </div>
+                <div class="prop-item" id="blur-radius-container" style="display:none;">
+                    <label>模糊半径</label>
+                    <input type="range" min="1" max="20" value="5" id="blur-radius">
+                    <span id="blur-radius-value" style="color:#888; font-size:12px;">5px</span>
+                </div>
+                <div class="prop-item" id="frosted-opacity-container" style="display:none;">
+                    <label>不透明度</label>
+                    <input type="range" min="0.1" max="1" step="0.1" value="0.7" id="frosted-opacity">
+                    <span id="frosted-opacity-value" style="color:#888; font-size:12px;">0.7</span>
                 </div>
 `;
+            // 笔刷大小
             document.getElementById('brush-size').addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                document.getElementById('brush-size-value').textContent = value + 'px';
                 if (this.mosaicBrush) {
-                    this.mosaicBrush.width = parseInt(e.target.value);
+                    this.mosaicBrush.width = value;
                 }
             });
+            // 像素块大小
             document.getElementById('block-size').addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                document.getElementById('block-size-value').textContent = value + 'px';
                 if (this.mosaicBrush) {
-                    this.mosaicBrush.blockSize = parseInt(e.target.value);
+                    this.mosaicBrush.blockSize = value;
                 }
+            });
+            // 模糊半径
+            document.getElementById('blur-radius').addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                document.getElementById('blur-radius-value').textContent = value + 'px';
+                if (this.mosaicBrush) {
+                    this.mosaicBrush.blurRadius = value;
+                }
+            });
+            // 毛玻璃不透明度
+            document.getElementById('frosted-opacity').addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                document.getElementById('frosted-opacity-value').textContent = value;
+                if (this.mosaicBrush) {
+                    this.mosaicBrush.frostedOpacity = value;
+                }
+            });
+            // 效果类型切换
+            document.getElementById('mosaic-type').addEventListener('change', (e) => {
+                const type = e.target.value;
+                if (this.mosaicBrush) {
+                    this.mosaicBrush.type = type;
+                }
+                // 显示/隐藏对应的参数控制
+                document.getElementById('pixel-size-container').style.display = type === 'pixel' ? 'block' : 'none';
+                document.getElementById('blur-radius-container').style.display = type === 'blur' ? 'block' : 'none';
+                document.getElementById('frosted-opacity-container').style.display = type === 'frosted' ? 'block' : 'none';
             });
         } else if (tool === 'shape') {
             panel.innerHTML = `
