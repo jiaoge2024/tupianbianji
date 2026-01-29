@@ -1214,6 +1214,7 @@ const toolManager = {
 
     initText() {
         this.updatePropertyPanel('text');
+        this.addText();
     },
 
     addText() {
@@ -1778,6 +1779,7 @@ const toolManager = {
     // ========== 标注形状工具 ==========
     initShape() {
         this.updatePropertyPanel('shape');
+        this.addRect();
     },
 
     addRect(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'dashed') {
@@ -3619,6 +3621,244 @@ ${description}
 
             document.getElementById('api-key').addEventListener('input', (e) => {
                 localStorage.setItem('iconGenApiKey', e.target.value);
+            });
+        } else if (tool === 'text') {
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label>字体选择</label>
+                    <select id="text-font" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="default">系统默认</option>
+                        <option value="heiti">黑体</option>
+                        <option value="kaiti">楷体</option>
+                        <option value="songti">宋体</option>
+                        <option value="handwrite">手写体</option>
+                        <option value="mono">等宽字体</option>
+                    </select>
+                </div>
+                <div class="prop-item">
+                    <label>预设样式</label>
+                    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; margin-top:6px;">
+                        <button class="preset-style-btn" data-style="internal" style="padding:10px 8px; background:#2a2a2a; border:2px dashed #d32f2f; border-radius:6px; color:#bdbdbd; cursor:pointer; font-size:11px; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <span style="font-size:16px;">📄</span>
+                            <span>内部资料</span>
+                        </button>
+                        <button class="preset-style-btn" data-style="secret" style="padding:10px 8px; background:#c62828; border:2px solid #c62828; border-radius:6px; color:#ffffff; cursor:pointer; font-size:11px; font-weight:bold; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px; box-shadow:0 2px 4px rgba(198,40,40,0.3);">
+                            <span style="font-size:16px;">🔒</span>
+                            <span>保密</span>
+                        </button>
+                        <button class="preset-style-btn" data-style="top-secret" style="padding:10px 8px; background:#2a2a2a; border:2px solid #b71c1c; border-radius:6px; color:#c62828; cursor:pointer; font-size:11px; font-weight:bold; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <span style="font-size:16px;">🔴</span>
+                            <span>绝密</span>
+                        </button>
+                        <button class="preset-style-btn" data-style="no-copy" style="padding:10px 8px; background:#2a2a2a; border:2px solid #ef6c00; border-radius:6px; color:#ff9800; cursor:pointer; font-size:11px; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                            <span style="font-size:16px;">🚫</span>
+                            <span>严禁复制</span>
+                        </button>
+                    </div>
+                    <p style="font-size:10px; color:#666; margin-top:8px;">点击应用预设样式，可配合下方平铺功能使用</p>
+                </div>
+                <div class="prop-item">
+                    <label>字体颜色</label>
+                    <input type="color" id="text-color" value="#ffffff" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
+                </div>
+                <div class="prop-item">
+                    <label>字体大小</label>
+                    <input type="range" min="12" max="120" value="40" id="text-size">
+                    <span id="text-size-value" style="color:#3b82f6;">40px</span>
+                </div>
+                <div class="prop-item">
+                    <label>透明度</label>
+                    <input type="range" min="0" max="100" value="100" id="text-opacity">
+                    <span id="text-opacity-value" style="color:#3b82f6;">100%</span>
+                </div>
+                <hr style="border:none; border-top:1px solid #444; margin:15px 0;">
+                <div class="prop-item">
+                    <label style="color:#34a853; font-weight:bold;">📋 全图平铺水印</label>
+                    <p style="font-size:11px; color:#888; margin:5px 0 10px 0;">将当前文字以平铺方式覆盖整个图片</p>
+                </div>
+                <div class="prop-item">
+                    <label>旋转角度</label>
+                    <input type="range" min="-45" max="45" value="-30" id="watermark-angle">
+                    <span id="watermark-angle-value" style="color:#34a853;">-30°</span>
+                </div>
+                <div class="prop-item">
+                    <label>水印间距</label>
+                    <input type="range" min="50" max="300" value="120" id="watermark-spacing">
+                    <span id="watermark-spacing-value" style="color:#34a853;">120px</span>
+                </div>
+                <button id="apply-tiled-watermark" class="primary-btn" style="width:100%; margin-top:10px; background:#34a853;">应用平铺水印</button>
+                <p style="font-size:11px; color:#888; margin-top:10px;">💡 提示：先点击"添加文字"按钮添加文字，选中后可调整属性或使用平铺功能</p>
+`;
+
+            // 预设样式点击事件
+            panel.querySelectorAll('.preset-style-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const style = e.target.closest('.preset-style-btn').dataset.style;
+                    const activeObj = canvas.getActiveObject();
+                    if (!activeObj || activeObj.type !== 'i-text') return;
+                    
+                    switch (style) {
+                        case 'internal':
+                            activeObj.set({
+                                text: '内部资料',
+                                fill: '#9e9e9e',
+                                fontSize: 48,
+                                opacity: 0.7,
+                                fontWeight: 'bold',
+                                shadow: new fabric.Shadow({
+                                    color: 'rgba(0,0,0,0.3)',
+                                    blur: 8,
+                                    offsetX: 2,
+                                    offsetY: 2
+                                })
+                            });
+                            break;
+                        case 'secret':
+                            activeObj.set({
+                                text: '保密',
+                                fill: '#d32f2f',
+                                fontSize: 72,
+                                opacity: 0.6,
+                                fontWeight: 'bold',
+                                shadow: new fabric.Shadow({
+                                    color: 'rgba(0,0,0,0.4)',
+                                    blur: 12,
+                                    offsetX: 3,
+                                    offsetY: 3
+                                })
+                            });
+                            break;
+                        case 'top-secret':
+                            activeObj.set({
+                                text: '绝密',
+                                fill: '#b71c1c',
+                                fontSize: 72,
+                                opacity: 0.7,
+                                fontWeight: '900',
+                                shadow: new fabric.Shadow({
+                                    color: 'rgba(183,28,28,0.5)',
+                                    blur: 15,
+                                    offsetX: 2,
+                                    offsetY: 2
+                                }),
+                                stroke: '#ffcdd2',
+                                strokeWidth: 1
+                            });
+                            break;
+                        case 'no-copy':
+                            activeObj.set({
+                                text: '严禁复制',
+                                fill: '#e65100',
+                                fontSize: 56,
+                                opacity: 0.6,
+                                fontWeight: 'bold',
+                                shadow: new fabric.Shadow({
+                                    color: 'rgba(0,0,0,0.4)',
+                                    blur: 10,
+                                    offsetX: 2,
+                                    offsetY: 2
+                                }),
+                                stroke: '#ffcc80',
+                                strokeWidth: 0.5
+                            });
+                            break;
+                    }
+                    canvas.renderAll();
+                    // 更新面板上的控件值
+                    document.getElementById('text-color').value = this.toHexColor(activeObj.fill);
+                    document.getElementById('text-size').value = activeObj.fontSize;
+                    document.getElementById('text-size-value').textContent = activeObj.fontSize + 'px';
+                    document.getElementById('text-opacity').value = activeObj.opacity * 100;
+                    document.getElementById('text-opacity-value').textContent = Math.round(activeObj.opacity * 100) + '%';
+                });
+            });
+
+            // 添加文字按钮
+            document.getElementById('add-text-btn')?.addEventListener('click', () => {
+                this.addText();
+            });
+
+            // 字体选择
+            document.getElementById('text-font').addEventListener('change', (e) => {
+                const activeObj = canvas.getActiveObject();
+                if (!activeObj || activeObj.type !== 'i-text') return;
+                const fontFamily = this._getFontStacks()[e.target.value];
+                activeObj.set('fontFamily', fontFamily);
+                canvas.renderAll();
+            });
+
+            // 颜色选择
+            document.getElementById('text-color').addEventListener('input', (e) => {
+                const activeObj = canvas.getActiveObject();
+                if (!activeObj || activeObj.type !== 'i-text') return;
+                activeObj.set('fill', e.target.value);
+                canvas.renderAll();
+            });
+
+            // 字体大小
+            document.getElementById('text-size').addEventListener('input', (e) => {
+                const activeObj = canvas.getActiveObject();
+                if (!activeObj || activeObj.type !== 'i-text') return;
+                const size = parseInt(e.target.value);
+                activeObj.set('fontSize', size);
+                document.getElementById('text-size-value').textContent = size + 'px';
+                canvas.renderAll();
+            });
+
+            // 透明度
+            document.getElementById('text-opacity').addEventListener('input', (e) => {
+                const activeObj = canvas.getActiveObject();
+                if (!activeObj || activeObj.type !== 'i-text') return;
+                const opacity = parseInt(e.target.value) / 100;
+                activeObj.set('opacity', opacity);
+                document.getElementById('text-opacity-value').textContent = Math.round(opacity * 100) + '%';
+                canvas.renderAll();
+            });
+
+            // 水印旋转角度
+            document.getElementById('watermark-angle').addEventListener('input', (e) => {
+                document.getElementById('watermark-angle-value').textContent = e.target.value + '°';
+            });
+
+            // 水印间距
+            document.getElementById('watermark-spacing').addEventListener('input', (e) => {
+                document.getElementById('watermark-spacing-value').textContent = e.target.value + 'px';
+            });
+
+            // 应用平铺水印
+            document.getElementById('apply-tiled-watermark').addEventListener('click', () => {
+                const activeObj = canvas.getActiveObject();
+                if (!activeObj || activeObj.type !== 'i-text') {
+                    alert('请先添加并选中文字');
+                    return;
+                }
+                const textContent = activeObj.text;
+                const fontFamily = activeObj.fontFamily;
+                const color = activeObj.fill;
+                const opacity = activeObj.opacity;
+                const fontSize = activeObj.fontSize;
+                const angle = parseInt(document.getElementById('watermark-angle').value);
+                const spacing = parseInt(document.getElementById('watermark-spacing').value);
+
+                // 移除原始文字对象
+                canvas.remove(activeObj);
+
+                // 应用平铺水印
+                this.applyTiledWatermark(textContent, fontFamily, color, opacity, fontSize, angle, spacing);
+            });
+        } else if (tool === 'image-watermark') {
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label>添加图片水印</label>
+                    <p style="font-size:11px; color:#888; margin:5px 0;">点击下方按钮选择图片作为水印添加到画布</p>
+                </div>
+                <button id="add-image-watermark-btn" class="primary-btn" style="width:100%; margin-top:10px;">📷 添加图片水印</button>
+                <p style="font-size:11px; color:#888; margin-top:10px;">💡 提示：添加后可调整透明度和缩放比例</p>
+`;
+
+            // 添加图片水印按钮
+            document.getElementById('add-image-watermark-btn').addEventListener('click', () => {
+                this.addImageWatermark();
             });
         } else {
             // 检查是否选中了文字对象
