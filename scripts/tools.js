@@ -1939,7 +1939,7 @@ ${description}
         this.updatePropertyPanel('frame');
     },
 
-    applyFrame(frameType, shadowType, frameWidth) {
+    applyFrame(frameShape, frameType, shadowType, frameWidth) {
         const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
         if (!baseImage) {
             alert('请先打开一张图片');
@@ -1962,8 +1962,29 @@ ${description}
         }
 
         // 计算新画布尺寸
-        const newWidth = imgWidth + paddingLeft + paddingRight;
-        const newHeight = imgHeight + paddingTop + paddingBottom;
+        let newWidth, newHeight;
+        
+        if (frameShape === 'circle') {
+            // 圆形边框：使用正方形画布，取图片较小边作为直径
+            const diameter = Math.min(imgWidth, imgHeight);
+            // 计算需要的边距，使图片居中
+            const offsetX = (imgWidth - diameter) / 2;
+            const offsetY = (imgHeight - diameter) / 2;
+            
+            newWidth = diameter + paddingLeft + paddingRight;
+            newHeight = diameter + paddingTop + paddingBottom;
+            
+            // 保存偏移量，用于后续处理
+            this._frameOffsetX = offsetX;
+            this._frameOffsetY = offsetY;
+            this._frameDiameter = diameter;
+        } else {
+            newWidth = imgWidth + paddingLeft + paddingRight;
+            newHeight = imgHeight + paddingTop + paddingBottom;
+            this._frameOffsetX = 0;
+            this._frameOffsetY = 0;
+            this._frameDiameter = 0;
+        }
 
         // 创建离屏画布
         const offscreenCanvas = document.createElement('canvas');
@@ -1972,11 +1993,11 @@ ${description}
         const ctx = offscreenCanvas.getContext('2d');
 
         // 绘制边框背景
-        this._drawFrameBackground(ctx, frameType, newWidth, newHeight, frameWidth);
+        this._drawFrameBackground(ctx, frameShape, frameType, newWidth, newHeight, frameWidth);
 
         // 绘制阴影效果（内阴影在图片上方绘制）
         if (shadowType !== 'none' && shadowType !== 'inner') {
-            this._applyShadow(ctx, shadowType, paddingLeft, paddingTop, imgWidth, imgHeight);
+            this._applyShadow(ctx, shadowType, frameShape, paddingLeft, paddingTop, imgWidth, imgHeight);
         }
 
         // 将原始图片绘制到中心位置
@@ -1995,14 +2016,32 @@ ${description}
             // 将图片绘制到主画布
             ctx.drawImage(tempCanvas, paddingLeft, paddingTop);
 
+            // 如果是圆形边框，裁剪成圆形
+            if (frameShape === 'circle') {
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-in';
+                ctx.beginPath();
+                const centerX = paddingLeft + this._frameDiameter / 2;
+                const centerY = paddingTop + this._frameDiameter / 2;
+                ctx.arc(centerX, centerY, this._frameDiameter / 2, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+
             // 绘制内阴影效果
             if (shadowType === 'inner') {
-                this._drawInnerShadow(ctx, paddingLeft, paddingTop, imgWidth, imgHeight);
+                this._drawInnerShadow(ctx, frameShape, paddingLeft, paddingTop, imgWidth, imgHeight);
             }
 
             // 复古相框：绘制内边框线条
             if (frameType === 'vintage') {
-                this._drawVintageFrame(ctx, paddingLeft, paddingTop, imgWidth, imgHeight, frameWidth);
+                this._drawVintageFrame(ctx, frameShape, paddingLeft, paddingTop, imgWidth, imgHeight, frameWidth);
+            }
+
+            // 毛绒绒边框：添加毛绒效果
+            if (frameType.startsWith('fluffy')) {
+                this._drawFluffyEdge(ctx, frameShape, paddingLeft, paddingTop, imgWidth, imgHeight, frameWidth, frameType);
             }
 
             // 将结果加载到 Fabric.js 画布
@@ -2024,38 +2063,102 @@ ${description}
         img.src = imgDataUrl;
     },
 
-    _drawFrameBackground(ctx, frameType, width, height, frameWidth) {
-        switch (frameType) {
-            case 'none':
-                ctx.fillStyle = 'transparent';
-                break;
-            case 'white':
-                ctx.fillStyle = '#ffffff';
-                break;
-            case 'black':
-                ctx.fillStyle = '#1a1a1a';
-                break;
-            case 'gradient':
-                const gradient = ctx.createLinearGradient(0, 0, width, height);
-                gradient.addColorStop(0, '#667eea');
-                gradient.addColorStop(0.5, '#764ba2');
-                gradient.addColorStop(1, '#f093fb');
-                ctx.fillStyle = gradient;
-                break;
-            case 'vintage':
-                // 复古相框：深棕色外框
-                ctx.fillStyle = '#3d2914';
-                break;
-            case 'polaroid':
-                ctx.fillStyle = '#f5f5f5';
-                break;
-            default:
-                ctx.fillStyle = '#ffffff';
+    _drawFrameBackground(ctx, frameShape, frameType, width, height, frameWidth) {
+        // 判断是否是毛绒绒风格
+        const isFluffy = frameType.startsWith('fluffy');
+        
+        // 毛绒绒风格的背景色
+        let fluffyColor = '#ffffff';
+        if (frameType === 'fluffy-white') fluffyColor = '#FFFEF7'; // 奶白
+        else if (frameType === 'fluffy-camel') fluffyColor = '#D4C4B5'; // 浅驼
+        else if (frameType === 'fluffy-pink') fluffyColor = '#FFB7C5'; // 樱花粉
+
+        if (isFluffy) {
+            // 毛绒绒风格使用圆角矩形背景
+            this._drawRoundedRectWithFluffy(ctx, 0, 0, width, height, 20, fluffyColor);
+        } else {
+            switch (frameType) {
+                case 'none':
+                    ctx.fillStyle = 'transparent';
+                    break;
+                case 'white':
+                    ctx.fillStyle = '#ffffff';
+                    break;
+                case 'black':
+                    ctx.fillStyle = '#1a1a1a';
+                    break;
+                case 'gradient':
+                    const gradient = ctx.createLinearGradient(0, 0, width, height);
+                    gradient.addColorStop(0, '#667eea');
+                    gradient.addColorStop(0.5, '#764ba2');
+                    gradient.addColorStop(1, '#f093fb');
+                    ctx.fillStyle = gradient;
+                    break;
+                case 'vintage':
+                    ctx.fillStyle = '#3d2914';
+                    break;
+                case 'polaroid':
+                    ctx.fillStyle = '#f5f5f5';
+                    break;
+                default:
+                    ctx.fillStyle = '#ffffff';
+            }
+            
+            if (frameShape === 'circle') {
+                // 圆形边框：背景也是圆形
+                ctx.beginPath();
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const radius = Math.min(width, height) / 2;
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            } else {
+                ctx.fillRect(0, 0, width, height);
+            }
         }
-        ctx.fillRect(0, 0, width, height);
     },
 
-    _applyShadow(ctx, shadowType, x, y, width, height) {
+    _drawRoundedRectWithFluffy(ctx, x, y, width, height, radius, color) {
+        // 先填充基础颜色
+        ctx.fillStyle = color;
+        this._drawRoundedRect(ctx, x, y, width, height, radius);
+        ctx.fill();
+        
+        // 添加毛绒绒的边缘效果（随机噪点）
+        ctx.save();
+        const imageData = ctx.getImageData(x, y, width, height);
+        const data = imageData.data;
+        const noiseIntensity = 15;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            if (data[i + 3] > 0) { // 只处理非透明像素
+                const noise = (Math.random() - 0.5) * noiseIntensity;
+                data[i] = Math.min(255, Math.max(0, data[i] + noise));
+                data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
+                data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+            }
+        }
+        
+        ctx.putImageData(imageData, x, y);
+        ctx.restore();
+    },
+
+    _drawRoundedRect(ctx, x, y, width, height, radius) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+    },
+
+    _applyShadow(ctx, shadowType, frameShape, x, y, width, height) {
         ctx.save();
         switch (shadowType) {
             case 'soft':
@@ -2077,60 +2180,208 @@ ${description}
                 ctx.shadowOffsetY = 15;
                 break;
         }
-        // 绘制一个临时矩形来产生阴影
+        
+        // 绘制一个临时形状来产生阴影
         ctx.fillStyle = 'rgba(255,255,255,0.01)';
-        ctx.fillRect(x, y, width, height);
+        
+        if (frameShape === 'circle') {
+            ctx.beginPath();
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            const radius = Math.min(width, height) / 2;
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            ctx.fillRect(x, y, width, height);
+        }
+        
         ctx.restore();
     },
 
-    _drawInnerShadow(ctx, x, y, width, height) {
+    _drawInnerShadow(ctx, frameShape, x, y, width, height) {
         // 内阴影效果：在图片边缘绘制渐变
         const shadowSize = 20;
 
-        // 上边内阴影
-        const topGradient = ctx.createLinearGradient(x, y, x, y + shadowSize);
-        topGradient.addColorStop(0, 'rgba(0,0,0,0.3)');
-        topGradient.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = topGradient;
-        ctx.fillRect(x, y, width, shadowSize);
+        if (frameShape === 'circle') {
+            // 圆形边框的内阴影
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            const radius = Math.min(width, height) / 2;
+            const innerRadius = radius - shadowSize;
 
-        // 左边内阴影
-        const leftGradient = ctx.createLinearGradient(x, y, x + shadowSize, y);
-        leftGradient.addColorStop(0, 'rgba(0,0,0,0.3)');
-        leftGradient.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = leftGradient;
-        ctx.fillRect(x, y, shadowSize, height);
+            // 创建径向渐变实现内阴影
+            const gradient = ctx.createRadialGradient(centerX, centerY, innerRadius, centerX, centerY, radius);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0.3)');
 
-        // 下边内阴影
-        const bottomGradient = ctx.createLinearGradient(x, y + height, x, y + height - shadowSize);
-        bottomGradient.addColorStop(0, 'rgba(0,0,0,0.2)');
-        bottomGradient.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = bottomGradient;
-        ctx.fillRect(x, y + height - shadowSize, width, shadowSize);
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        } else {
+            // 矩形边框的内阴影
+            // 上边内阴影
+            const topGradient = ctx.createLinearGradient(x, y, x, y + shadowSize);
+            topGradient.addColorStop(0, 'rgba(0,0,0,0.3)');
+            topGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = topGradient;
+            ctx.fillRect(x, y, width, shadowSize);
 
-        // 右边内阴影
-        const rightGradient = ctx.createLinearGradient(x + width, y, x + width - shadowSize, y);
-        rightGradient.addColorStop(0, 'rgba(0,0,0,0.2)');
-        rightGradient.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = rightGradient;
-        ctx.fillRect(x + width - shadowSize, y, shadowSize, height);
+            // 左边内阴影
+            const leftGradient = ctx.createLinearGradient(x, y, x + shadowSize, y);
+            leftGradient.addColorStop(0, 'rgba(0,0,0,0.3)');
+            leftGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = leftGradient;
+            ctx.fillRect(x, y, shadowSize, height);
+
+            // 下边内阴影
+            const bottomGradient = ctx.createLinearGradient(x, y + height, x, y + height - shadowSize);
+            bottomGradient.addColorStop(0, 'rgba(0,0,0,0.2)');
+            bottomGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = bottomGradient;
+            ctx.fillRect(x, y + height - shadowSize, width, shadowSize);
+
+            // 右边内阴影
+            const rightGradient = ctx.createLinearGradient(x + width, y, x + width - shadowSize, y);
+            rightGradient.addColorStop(0, 'rgba(0,0,0,0.2)');
+            rightGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = rightGradient;
+            ctx.fillRect(x + width - shadowSize, y, shadowSize, height);
+        }
     },
 
-    _drawVintageFrame(ctx, x, y, width, height, frameWidth) {
+    _drawVintageFrame(ctx, frameShape, x, y, width, height, frameWidth) {
         // 复古相框：绘制内边框装饰线
         const innerPadding = frameWidth * 0.3;
 
-        // 外层金色线
-        ctx.strokeStyle = '#b8860b';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(innerPadding, innerPadding,
-            x + width + frameWidth - innerPadding * 2,
-            y + height + frameWidth - innerPadding * 2);
+        if (frameShape === 'circle') {
+            // 圆形复古框
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            const radius = Math.min(width, height) / 2;
+            const innerRadius = radius - innerPadding;
 
-        // 内层深色线（贴近图片）
-        ctx.strokeStyle = '#1a1a1a';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+            // 外层金色线
+            ctx.strokeStyle = '#b8860b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.stroke();
+
+            // 内层深色线
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, innerRadius - 2, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.stroke();
+        } else {
+            // 矩形复古框
+            // 外层金色线
+            ctx.strokeStyle = '#b8860b';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(innerPadding, innerPadding,
+                x + width + frameWidth - innerPadding * 2,
+                y + height + frameWidth - innerPadding * 2);
+
+            // 内层深色线（贴近图片）
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x - 2, y - 2, width + 4, height + 4);
+        }
+    },
+
+    _drawFluffyEdge(ctx, frameShape, x, y, width, height, frameWidth, frameType) {
+        // 毛绒绒边缘效果
+        const fluffyColor = frameType === 'fluffy-white' ? '#FFFEF7' :
+                           frameType === 'fluffy-camel' ? '#D4C4B5' : '#FFB7C5';
+
+        ctx.save();
+
+        // 毛绒边缘宽度
+        const fluffySize = 8;
+
+        if (frameShape === 'circle') {
+            // 圆形毛绒边缘
+            const centerX = x + width / 2;
+            const centerY = y + height / 2;
+            const radius = Math.min(width, height) / 2;
+
+            // 绘制多层毛绒边缘
+            for (let i = fluffySize; i > 0; i -= 2) {
+                const edgeRadius = radius + i;
+                const alpha = 0.1 + (fluffySize - i) / fluffySize * 0.2;
+                
+                ctx.beginPath();
+                // 添加随机波动模拟毛绒感
+                for (let angle = 0; angle < Math.PI * 2; angle += 0.1) {
+                    const r = edgeRadius + (Math.random() - 0.5) * 4;
+                    const px = centerX + Math.cos(angle) * r;
+                    const py = centerY + Math.sin(angle) * r;
+                    if (angle === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                
+                ctx.fillStyle = fluffyColor;
+                ctx.globalAlpha = alpha;
+                ctx.fill();
+            }
+
+            // 添加针织纹理效果
+            ctx.globalAlpha = 0.15;
+            for (let i = 0; i < 50; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = radius - 10 + Math.random() * 20;
+                const px = centerX + Math.cos(angle) * dist;
+                const py = centerY + Math.sin(angle) * dist;
+                
+                ctx.beginPath();
+                ctx.arc(px, py, 1 + Math.random() * 2, 0, Math.PI * 2);
+                ctx.fillStyle = fluffyColor;
+                ctx.fill();
+            }
+        } else {
+            // 矩形毛绒边缘（圆角矩形）
+            const radius = 20;
+            
+            // 绘制四边的毛绒效果
+            const edges = [
+                { x: x - fluffySize, y: y, w: width + fluffySize * 2, h: fluffySize }, // 上
+                { x: x - fluffySize, y: y + height - fluffySize, w: width + fluffySize * 2, h: fluffySize }, // 下
+                { x: x, y: y - fluffySize, w: fluffySize, h: height + fluffySize * 2 }, // 左
+                { x: x + width - fluffySize, y: y - fluffySize, w: fluffySize, h: height + fluffySize * 2 } // 右
+            ];
+
+            edges.forEach(edge => {
+                for (let i = fluffySize; i > 0; i -= 2) {
+                    const alpha = 0.1 + (fluffySize - i) / fluffySize * 0.2;
+                    ctx.fillStyle = fluffyColor;
+                    ctx.globalAlpha = alpha;
+                    ctx.fillRect(edge.x, edge.y + (Math.random() - 0.5) * 4, edge.w, i);
+                }
+            });
+
+            // 添加针织纹理
+            ctx.globalAlpha = 0.1;
+            for (let i = 0; i < 100; i++) {
+                const px = x - fluffySize + Math.random() * (width + fluffySize * 2);
+                const py = y - fluffySize + Math.random() * (height + fluffySize * 2);
+                
+                ctx.beginPath();
+                ctx.arc(px, py, 1 + Math.random() * 2, 0, Math.PI * 2);
+                ctx.fillStyle = fluffyColor;
+                ctx.fill();
+            }
+        }
+
+        ctx.restore();
     },
 
     // ========== 去水印功能（智能裁剪法）==========
@@ -2828,6 +3079,13 @@ ${description}
         } else if (tool === 'frame') {
             panel.innerHTML = `
                 <div class="prop-item">
+                    <label>边框形状</label>
+                    <select id="frame-shape" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="rect">矩形</option>
+                        <option value="circle">圆形</option>
+                    </select>
+                </div>
+                <div class="prop-item">
                     <label>图框类型</label>
                     <select id="frame-type" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
                         <option value="none">无边框</option>
@@ -2836,6 +3094,9 @@ ${description}
                         <option value="gradient">渐变边框</option>
                         <option value="vintage">复古相框</option>
                         <option value="polaroid">拍立得</option>
+                        <option value="fluffy-white">毛绒绒·奶白</option>
+                        <option value="fluffy-camel">毛绒绒·浅驼</option>
+                        <option value="fluffy-pink">毛绒绒·樱花粉</option>
                     </select>
                 </div>
                 <div class="prop-item">
@@ -2854,7 +3115,7 @@ ${description}
                     <span id="frame-width-value" style="color:#3b82f6;">30px</span>
                 </div>
                 <button id="apply-frame" class="primary-btn" style="width:100%; margin-top:10px;">应用效果</button>
-                <p style="font-size:11px; color:#888; margin-top:10px;">提示：选择拍立得效果时，底部边框会更宽以模拟拍立得相纸。</p>
+                <p style="font-size:11px; color:#888; margin-top:10px;">提示：选择拍立得效果时，底部边框会更宽以模拟拍立得相纸。毛绒绒风格适合宠物、儿童、软萌风图片。</p>
 `;
 
             document.getElementById('frame-width').addEventListener('input', (e) => {
@@ -2862,10 +3123,11 @@ ${description}
             });
 
             document.getElementById('apply-frame').addEventListener('click', () => {
+                const frameShape = document.getElementById('frame-shape').value;
                 const frameType = document.getElementById('frame-type').value;
                 const shadowType = document.getElementById('shadow-type').value;
                 const frameWidth = parseInt(document.getElementById('frame-width').value);
-                this.applyFrame(frameType, shadowType, frameWidth);
+                this.applyFrame(frameShape, frameType, shadowType, frameWidth);
             });
         } else if (tool === 'icon-gen') {
             // 从 localStorage 读取保存的 API 配置
