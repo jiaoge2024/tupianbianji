@@ -37,14 +37,17 @@ function initCanvas() {
 
     // Listen for object selection to update property panel
     canvas.on('selection:created', () => {
+        if (toolManager._stickerMode) return;  // 贴纸模式下不切换面板
         toolManager.updatePropertyPanel('select');
     });
 
     canvas.on('selection:updated', () => {
+        if (toolManager._stickerMode) return;  // 贴纸模式下不切换面板
         toolManager.updatePropertyPanel('select');
     });
 
     canvas.on('selection:cleared', () => {
+        if (toolManager._stickerMode) return;  // 贴纸模式下不切换面板
         toolManager.updatePropertyPanel('select');
     });
 }

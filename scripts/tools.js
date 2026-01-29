@@ -1360,25 +1360,332 @@ const toolManager = {
         ];
     },
 
+    // 获取图标贴纸列表
+    _getIconStickerList() {
+        return [
+            { id: 'book', name: '书籍', color: '#8B4513' },
+            { id: 'eraser', name: '橡皮擦', color: '#FF6B6B' },
+            { id: 'bookmark', name: '书签', color: '#4ECDC4' },
+            { id: 'glasses', name: '眼镜', color: '#2C3E50' },
+            { id: 'headphones', name: '耳机', color: '#9B59B6' },
+            { id: 'coffee', name: '咖啡', color: '#D35400' },
+            { id: 'envelope', name: '信封', color: '#3498DB' },
+            { id: 'calculator', name: '计算器', color: '#1ABC9C' }
+        ];
+    },
+
+    // 绘制图标贴纸到Canvas
+    _drawIconSticker(ctx, id, size, color) {
+        const centerX = size / 2;
+        const centerY = size / 2;
+
+        // 辅助函数：绘制圆角矩形
+        const drawRoundRect = (ctx, x, y, w, h, r) => {
+            if (w < 2 * r) r = w / 2;
+            if (h < 2 * r) r = h / 2;
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+        };
+
+        switch (id) {
+            case 'book':
+                // 绘制书籍
+                ctx.fillStyle = color;
+                // 封面
+                ctx.fillRect(centerX - 30, centerY - 40, 60, 80);
+                // 书脊
+                ctx.fillStyle = this._shadeColor(color, -20);
+                ctx.fillRect(centerX - 40, centerY - 40, 10, 80);
+                // 书页
+                ctx.fillStyle = '#FFFEF7';
+                ctx.fillRect(centerX - 30, centerY - 35, 55, 70);
+                // 书签线
+                ctx.strokeStyle = '#E74C3C';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(centerX + 10, centerY - 35);
+                ctx.lineTo(centerX + 10, centerY + 35);
+                ctx.stroke();
+                break;
+
+            case 'eraser':
+                // 绘制橡皮擦
+                ctx.fillStyle = '#FFE4E1';
+                drawRoundRect(ctx, centerX - 35, centerY - 25, 70, 50, 8);
+                ctx.fill();
+                // 品牌文字
+                ctx.fillStyle = '#FF6B6B';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('SUPER', centerX, centerY + 5);
+                break;
+
+            case 'bookmark':
+                // 绘制书签 - 优化版
+                // 书签主体
+                const gradient = ctx.createLinearGradient(centerX - 25, centerY - 45, centerX + 25, centerY + 35);
+                gradient.addColorStop(0, color);
+                gradient.addColorStop(1, this._shadeColor(color, 20));
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 28, centerY - 45);
+                ctx.lineTo(centerX + 28, centerY - 45);
+                ctx.lineTo(centerX + 28, centerY + 35);
+                ctx.lineTo(centerX, centerY + 18);
+                ctx.lineTo(centerX - 28, centerY + 35);
+                ctx.closePath();
+                ctx.fill();
+                // 流苏
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY + 18);
+                ctx.lineTo(centerX, centerY + 50);
+                ctx.stroke();
+                // 流苏末端
+                ctx.fillStyle = this._shadeColor(color, -10);
+                ctx.beginPath();
+                ctx.arc(centerX, centerY + 52, 4, 0, Math.PI * 2);
+                ctx.fill();
+                // 装饰星星
+                ctx.fillStyle = '#FFF';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('★', centerX, centerY - 15);
+                break;
+
+            case 'glasses':
+                // 绘制眼镜
+                // 镜框外圈
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                ctx.arc(centerX - 28, centerY, 24, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(centerX + 28, centerY, 24, 0, Math.PI * 2);
+                ctx.stroke();
+                // 镜片
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(centerX - 28, centerY, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(centerX + 28, centerY, 20, 0, Math.PI * 2);
+                ctx.fill();
+                // 镜框内圈
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(centerX - 28, centerY, 20, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(centerX + 28, centerY, 20, 0, Math.PI * 2);
+                ctx.stroke();
+                // 鼻梁
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 8, centerY);
+                ctx.lineTo(centerX + 8, centerY);
+                ctx.stroke();
+                // 镜腿
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 52, centerY);
+                ctx.lineTo(centerX - 60, centerY - 20);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(centerX + 52, centerY);
+                ctx.lineTo(centerX + 60, centerY - 20);
+                ctx.stroke();
+                break;
+
+            case 'headphones':
+                // 绘制耳机
+                // 头梁
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY + 15, 38, Math.PI, 0);
+                ctx.stroke();
+                // 耳罩外圈
+                ctx.fillStyle = this._shadeColor(color, 20);
+                ctx.beginPath();
+                ctx.ellipse(centerX - 38, centerY + 15, 18, 26, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(centerX + 38, centerY + 15, 18, 26, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // 耳罩内圈
+                ctx.fillStyle = '#2C3E50';
+                ctx.beginPath();
+                ctx.ellipse(centerX - 38, centerY + 18, 12, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(centerX + 38, centerY + 18, 12, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // 耳罩装饰
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(centerX - 38, centerY + 18, 14, 20, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.ellipse(centerX + 38, centerY + 18, 14, 20, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                break;
+
+            case 'coffee':
+                // 绘制咖啡杯
+                ctx.fillStyle = '#F5F5DC';
+                drawRoundRect(ctx, centerX - 30, centerY - 25, 60, 50, 8);
+                ctx.fill();
+                // 杯口
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.ellipse(centerX, centerY - 25, 30, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // 咖啡液
+                ctx.fillStyle = '#6F4E37';
+                ctx.beginPath();
+                ctx.ellipse(centerX, centerY - 25, 24, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                // 把手
+                ctx.strokeStyle = '#F5F5DC';
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.arc(centerX + 40, centerY, 15, -Math.PI / 2, Math.PI / 2);
+                ctx.stroke();
+                // 蒸汽
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 10, centerY - 40);
+                ctx.quadraticCurveTo(centerX - 15, centerY - 55, centerX - 5, centerY - 60);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(centerX + 10, centerY - 40);
+                ctx.quadraticCurveTo(centerX + 15, centerY - 55, centerX + 5, centerY - 60);
+                ctx.stroke();
+                break;
+
+            case 'envelope':
+                // 绘制信封 - 优化版
+                // 信封主体
+                ctx.fillStyle = color;
+                drawRoundRect(ctx, centerX - 42, centerY - 30, 84, 60, 6);
+                ctx.fill();
+                // 信封盖
+                ctx.fillStyle = this._shadeColor(color, -10);
+                ctx.beginPath();
+                ctx.moveTo(centerX - 42, centerY - 30);
+                ctx.lineTo(centerX - 25, centerY - 5);
+                ctx.lineTo(centerX, centerY - 25);
+                ctx.lineTo(centerX + 25, centerY - 5);
+                ctx.lineTo(centerX + 42, centerY - 30);
+                ctx.closePath();
+                ctx.fill();
+                // 信封折痕
+                ctx.strokeStyle = this._shadeColor(color, 15);
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(centerX - 42, centerY - 30);
+                ctx.lineTo(centerX, centerY + 5);
+                ctx.lineTo(centerX + 42, centerY - 30);
+                ctx.stroke();
+                // 封口处装饰
+                ctx.fillStyle = this._shadeColor(color, 20);
+                ctx.beginPath();
+                ctx.arc(centerX, centerY - 25, 3, 0, Math.PI * 2);
+                ctx.fill();
+                // 邮票位置
+                ctx.fillStyle = '#FFE4E1';
+                ctx.fillRect(centerX + 25, centerY - 25, 12, 15);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(centerX + 25, centerY - 25, 12, 15);
+                break;
+
+            case 'calculator':
+                // 绘制计算器
+                ctx.fillStyle = color;
+                drawRoundRect(ctx, centerX - 32, centerY - 40, 64, 80, 8);
+                ctx.fill();
+                // 屏幕
+                ctx.fillStyle = '#2C3E50';
+                drawRoundRect(ctx, centerX - 25, centerY - 32, 50, 22, 4);
+                ctx.fill();
+                // 屏幕数字
+                ctx.fillStyle = '#27AE60';
+                ctx.font = 'bold 16px monospace';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('1234', centerX + 20, centerY - 18);
+                // 按钮
+                const btnColors = ['#E74C3C', '#3498DB', '#F39C12'];
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col < 3; col++) {
+                        ctx.fillStyle = btnColors[row % 3];
+                        drawRoundRect(ctx, centerX - 25 + col * 20, centerY - 5 + row * 20, 16, 16, 4);
+                        ctx.fill();
+                    }
+                }
+                break;
+        }
+    },
+
     initSticker() {
+        this._stickerMode = true;  // 标记进入贴纸模式
         this.updatePropertyPanel('sticker');
     },
 
-    addSticker(emoji) {
-        // 创建离屏 Canvas 渲染 Emoji
+    // 辅助函数：调整颜色亮度
+    _shadeColor(color, percent) {
+        if (!color) return '#000000';
+        // 简单的错误处理，如果不是 hex 颜色则直接返回原色
+        if (!color.startsWith('#')) return color;
+
+        const num = parseInt(color.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = (num >> 16) + amt;
+        const G = (num >> 8 & 0x00FF) + amt;
+        const B = (num & 0x0000FF) + amt;
+        return '#' + (0x1000000 +
+            (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+            (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+            (B < 255 ? B < 1 ? 0 : B : 255)
+        ).toString(16).slice(1);
+    },
+
+    addSticker(emoji, type = 'emoji') {
+        // 创建离屏 Canvas 渲染贴纸
         const size = 128; // 贴纸基础尺寸
         const offscreenCanvas = document.createElement('canvas');
         offscreenCanvas.width = size;
         offscreenCanvas.height = size;
         const ctx = offscreenCanvas.getContext('2d');
 
-        // 设置 Emoji 绘制样式
-        ctx.font = `${size * 0.8}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // 绘制 Emoji
-        ctx.fillText(emoji, size / 2, size / 2);
+        if (type === 'emoji') {
+            // 绘制 Emoji
+            ctx.font = `${size * 0.8}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, size / 2, size / 2);
+        } else {
+            // 绘制图标贴纸
+            const icon = this._getIconStickerList().find(i => i.id === emoji);
+            const color = icon ? icon.color : '#000000';
+            this._drawIconSticker(ctx, emoji, size, color);
+        }
 
         // 转为 Data URL
         const dataUrl = offscreenCanvas.toDataURL('image/png');
@@ -1400,6 +1707,7 @@ const toolManager = {
                 evented: true,
                 // 标记为贴纸
                 isSticker: true,
+                stickerType: type,
                 // 美化控制点
                 cornerStyle: 'circle',
                 cornerColor: '#3b82f6',
@@ -2466,6 +2774,11 @@ ${description}
     },
 
     updatePropertyPanel(tool) {
+        // 切换工具时退出贴纸模式
+        if (tool !== 'sticker') {
+            this._stickerMode = false;
+        }
+
         const panel = document.getElementById('panel-content');
         panel.innerHTML = '';
 
@@ -2822,24 +3135,53 @@ ${description}
             });
         } else if (tool === 'sticker') {
             const stickers = this._getStickerList();
+            const iconStickers = this._getIconStickerList();
+
+            // Emoji 贴纸按钮
             const stickerButtons = stickers.map(s =>
-                `<div class="sticker-item" data-emoji="${s.emoji}" title="${s.name}" 
-                    style="font-size:22px; cursor:pointer; padding:4px; background:#2d2d2d; 
-                    border:2px solid transparent; border-radius:6px; text-align:center;
+                `<div class="sticker-item" data-emoji="${s.emoji}" data-type="emoji" title="${s.name}"
+                    style="font-size:24px; cursor:pointer; padding:6px; background:#2d2d2d;
+                    border:2px solid transparent; border-radius:8px; text-align:center;
                     transition: all 0.15s ease; display:flex; align-items:center; justify-content:center;
-                    min-height:36px;">
+                    min-height:44px;">
                     ${s.emoji}
                 </div>`
             ).join('');
 
+            // 图标贴纸按钮（使用 Canvas 绘制预览）
+            const iconStickerButtons = iconStickers.map(s => {
+                const previewCanvas = document.createElement('canvas');
+                previewCanvas.width = 40;
+                previewCanvas.height = 40;
+                const previewCtx = previewCanvas.getContext('2d');
+                previewCtx.scale(0.3, 0.3);
+                previewCtx.translate(20, 20);
+                this._drawIconSticker(previewCtx, s.id, 80, s.color);
+                const dataUrl = previewCanvas.toDataURL();
+                return `<div class="sticker-item" data-emoji="${s.id}" data-type="icon" title="${s.name}"
+                    style="cursor:pointer; padding:6px; background:#2d2d2d;
+                    border:2px solid transparent; border-radius:8px; text-align:center;
+                    transition: all 0.15s ease; display:flex; align-items:center; justify-content:center;
+                    min-height:44px; background-image: url(${dataUrl}); background-size: contain; background-position: center; background-repeat: no-repeat;">
+                </div>`;
+            }).join('');
+
             panel.innerHTML = `
                 <div class="prop-item">
-                    <label style="color:#f59e0b; font-weight:bold;">🎨 选择贴纸</label>
-                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:4px; margin-top:8px;">
+                    <label style="color:#f59e0b; font-weight:bold;">😊 Emoji 表情</label>
+                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-top:8px;">
                         ${stickerButtons}
                     </div>
                 </div>
-                <p style="font-size:10px; color:#666; margin-top:8px;">点击贴纸添加，可拖动缩放</p>
+                <div class="prop-item" style="margin-top:16px; padding-top:12px; border-top:1px solid #333;">
+                    <label style="color:#10b981; font-weight:bold;">🎨 精美图标</label>
+                    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; margin-top:8px;">
+                        ${iconStickerButtons}
+                    </div>
+                </div>
+                <p style="font-size:10px; color:#666; margin-top:12px; padding-top:8px; border-top:1px solid #333;">
+                    💡 点击贴纸添加到画布，可拖动、缩放、旋转
+                </p>
 `;
 
             // 贴纸点击事件
@@ -2848,14 +3190,17 @@ ${description}
                 item.addEventListener('mouseenter', () => {
                     item.style.border = '2px solid #f59e0b';
                     item.style.transform = 'scale(1.1)';
+                    item.style.boxShadow = '0 2px 8px rgba(245, 158, 11, 0.3)';
                 });
                 item.addEventListener('mouseleave', () => {
                     item.style.border = '2px solid transparent';
                     item.style.transform = 'scale(1)';
+                    item.style.boxShadow = 'none';
                 });
                 item.addEventListener('click', () => {
                     const emoji = item.dataset.emoji;
-                    this.addSticker(emoji);
+                    const type = item.dataset.type;
+                    this.addSticker(emoji, type);
                 });
             });
         } else if (tool === 'grid-slice') {
