@@ -31,14 +31,10 @@ const toolManager = {
         }
 
         // 如果点击的是当前已激活的工具，且不是'select'，则切换回'select'（实现取消当前工具的功能）
-        if (this.currentTool === toolName && toolName !== 'select') {
-            // 对于像 'rect' 这种一次性添加的工具，不应该 toggle，但目前 rect 是直接添加，
-            // 只有像 crop/mosaic 这种有持续状态的才需要 toggle。
-            // 不过为了统一体验，我们可以让所有按钮点击第二次都回到 default 状态
-            // 除非是像 addRect 这种立即执行的，但 addRect 执行完其实也就在 default 状态了
-            // 所以这里主要针对 Mosaic, Crop 等模式
+        // 排除支持连续操作的工具：shape（可添加多个形状）、text（可添加多个文字）、sticker（可添加多个贴纸）、image-watermark（可添加多个水印）
+        if (this.currentTool === toolName && toolName !== 'select' && 
+            toolName !== 'shape' && toolName !== 'text' && toolName !== 'sticker' && toolName !== 'image-watermark') {
             this.activate('select');
-            // 更新 UI 状态
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
             return;
         }
@@ -1805,6 +1801,7 @@ const toolManager = {
         });
         canvas.add(rect);
         canvas.setActiveObject(rect);
+        historyManager.push(canvas);
     },
 
     addCircle(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'dashed') {
@@ -1835,6 +1832,7 @@ const toolManager = {
         });
         canvas.add(circle);
         canvas.setActiveObject(circle);
+        historyManager.push(canvas);
     },
 
     addArrow(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'solid') {
@@ -1868,6 +1866,74 @@ const toolManager = {
         });
         canvas.add(arrowPath);
         canvas.setActiveObject(arrowPath);
+        historyManager.push(canvas);
+    },
+
+    addLine(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'solid') {
+        const line = new fabric.Line([0, 0, 150, 0], {
+            left: 100,
+            top: 150,
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
+            strokeDashArray: lineStyle === 'dashed' ? [8, 4] : null,
+            strokeLineCap: 'round',
+            // Shadow effect for depth
+            shadow: new fabric.Shadow({
+                color: 'rgba(0, 0, 0, 0.15)',
+                blur: 4,
+                offsetX: 1,
+                offsetY: 1
+            }),
+            // Improved control point styling
+            cornerStyle: 'circle',
+            cornerColor: strokeColor,
+            cornerStrokeColor: '#ffffff',
+            cornerSize: 8,
+            transparentCorners: false,
+            borderColor: strokeColor,
+            borderScaleFactor: 1.5
+        });
+        canvas.add(line);
+        canvas.setActiveObject(line);
+        historyManager.push(canvas);
+    },
+
+    addDiamond(strokeColor = '#1a73e8', strokeWidth = 2, lineStyle = 'dashed') {
+        const size = 80;
+        const diamondPath = new fabric.Path(`
+            M ${size / 2} 0
+            L ${size} ${size / 2}
+            L ${size / 2} ${size}
+            L 0 ${size / 2}
+            Z
+        `, {
+            left: 100,
+            top: 100,
+            fill: 'transparent',
+            stroke: strokeColor,
+            strokeWidth: strokeWidth,
+            strokeDashArray: lineStyle === 'dashed' ? [6, 3] : null,
+            strokeLineCap: 'round',
+            strokeLineJoin: 'round',
+            // Shadow effect for depth
+            shadow: new fabric.Shadow({
+                color: 'rgba(0, 0, 0, 0.15)',
+                blur: 6,
+                offsetX: 2,
+                offsetY: 2
+            }),
+            // Improved control point styling
+            cornerStyle: 'circle',
+            cornerColor: strokeColor,
+            cornerStrokeColor: '#ffffff',
+            cornerSize: 8,
+            transparentCorners: false,
+            borderColor: strokeColor,
+            borderScaleFactor: 1.5
+        });
+        canvas.add(diamondPath);
+        canvas.setActiveObject(diamondPath);
+        historyManager.push(canvas);
     },
 
     // ========== 图标生成器（独立画布系统）==========
@@ -2958,9 +3024,11 @@ ${description}
                 <div class="prop-item">
                     <label>形状类型</label>
                     <select id="shape-type" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
-                        <option value="rect">矩形</option>
-                        <option value="circle">圆形</option>
-                        <option value="arrow">箭头</option>
+                        <option value="rect">⬜ 矩形</option>
+                        <option value="circle">⭕ 圆形</option>
+                        <option value="line">➖ 直线</option>
+                        <option value="diamond">🔶 菱形</option>
+                        <option value="arrow">➡️ 箭头</option>
                     </select>
                 </div>
                 <div class="prop-item">
@@ -3023,6 +3091,12 @@ ${description}
                         break;
                     case 'circle':
                         this.addCircle(strokeColor, strokeWidth, lineStyle);
+                        break;
+                    case 'line':
+                        this.addLine(strokeColor, strokeWidth, lineStyle);
+                        break;
+                    case 'diamond':
+                        this.addDiamond(strokeColor, strokeWidth, lineStyle);
                         break;
                     case 'arrow':
                         this.addArrow(strokeColor, strokeWidth, lineStyle);
