@@ -66,7 +66,7 @@ const toolManager = {
                 this.initAiBackground();
                 break;
             case 'text':
-                this.addText();
+                this.initText();
                 break;
             case 'crop':
                 this.initCrop();
@@ -81,7 +81,7 @@ const toolManager = {
                 this.updatePropertyPanel('filter');
                 break;
             case 'image-watermark':
-                this.addImageWatermark();
+                this.initImageWatermark();
                 break;
             case 'shape':
                 this.initShape();
@@ -1212,6 +1212,10 @@ const toolManager = {
         this.updatePropertyPanel('mosaic');
     },
 
+    initText() {
+        this.updatePropertyPanel('text');
+    },
+
     addText() {
         const fontStacks = this._getFontStacks();
         const text = new fabric.IText('输入文字...', {
@@ -1223,6 +1227,7 @@ const toolManager = {
         });
         canvas.add(text);
         canvas.setActiveObject(text);
+        historyManager.push(canvas);
     },
 
     // ========== 全图平铺水印功能 ==========
@@ -1315,6 +1320,10 @@ const toolManager = {
         };
     },
 
+    initImageWatermark() {
+        this.updatePropertyPanel('image-watermark');
+    },
+
     addImageWatermark() {
         const input = document.createElement('input');
         input.type = 'file';
@@ -1327,6 +1336,8 @@ const toolManager = {
                     img.scale(0.2);
                     canvas.add(img);
                     canvas.centerObject(img);
+                    canvas.setActiveObject(img);
+                    historyManager.push(canvas);
                 });
             };
             reader.readAsDataURL(file);
@@ -2843,6 +2854,12 @@ ${description}
         // 切换工具时退出贴纸模式
         if (tool !== 'sticker') {
             this._stickerMode = false;
+        }
+
+        // 对于连续操作工具，如果尝试切换到 'select'，则不执行任何操作
+        const continuousTools = ['shape', 'text', 'sticker', 'image-watermark'];
+        if (tool === 'select' && continuousTools.includes(this.currentTool)) {
+            return;
         }
 
         const panel = document.getElementById('panel-content');
