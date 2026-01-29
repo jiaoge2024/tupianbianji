@@ -3552,6 +3552,28 @@ ${description}
                         </select>
                     </div>
                     <div class="prop-item">
+                        <label>预设样式</label>
+                        <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; margin-top:6px;">
+                            <button class="preset-style-btn" data-style="internal" style="padding:10px 8px; background:#2a2a2a; border:2px dashed #d32f2f; border-radius:6px; color:#bdbdbd; cursor:pointer; font-size:11px; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <span style="font-size:16px;">📄</span>
+                                <span>内部资料</span>
+                            </button>
+                            <button class="preset-style-btn" data-style="secret" style="padding:10px 8px; background:#c62828; border:2px solid #c62828; border-radius:6px; color:#ffffff; cursor:pointer; font-size:11px; font-weight:bold; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px; box-shadow:0 2px 4px rgba(198,40,40,0.3);">
+                                <span style="font-size:16px;">🔒</span>
+                                <span>保密</span>
+                            </button>
+                            <button class="preset-style-btn" data-style="top-secret" style="padding:10px 8px; background:#2a2a2a; border:2px solid #b71c1c; border-radius:6px; color:#c62828; cursor:pointer; font-size:11px; font-weight:bold; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <span style="font-size:16px;">🔴</span>
+                                <span>绝密</span>
+                            </button>
+                            <button class="preset-style-btn" data-style="no-copy" style="padding:10px 8px; background:#2a2a2a; border:2px solid #ef6c00; border-radius:6px; color:#ff9800; cursor:pointer; font-size:11px; transition:all 0.2s ease; display:flex; flex-direction:column; align-items:center; gap:4px;">
+                                <span style="font-size:16px;">🚫</span>
+                                <span>严禁复制</span>
+                            </button>
+                        </div>
+                        <p style="font-size:10px; color:#666; margin-top:8px;">点击应用预设样式，可配合下方平铺功能使用</p>
+                    </div>
+                    <div class="prop-item">
                         <label>字体颜色</label>
                         <input type="color" id="text-color" value="${this.toHexColor(activeObj.fill)}" style="width:100%; height:35px; border:1px solid #333; border-radius:4px; background:#2d2d2d; cursor:pointer;">
                     </div>
@@ -3582,6 +3604,86 @@ ${description}
                     </div>
                     <button id="apply-tiled-watermark" class="primary-btn" style="width:100%; margin-top:10px; background:#34a853;">应用平铺水印</button>
 `;
+
+                // 预设样式点击事件
+                panel.querySelectorAll('.preset-style-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const style = e.target.dataset.style;
+                        switch (style) {
+                            case 'internal':
+                                activeObj.set({
+                                    text: '内部资料',
+                                    fill: '#9e9e9e',
+                                    fontSize: 48,
+                                    opacity: 0.7,
+                                    fontWeight: 'bold',
+                                    shadow: new fabric.Shadow({
+                                        color: 'rgba(0,0,0,0.3)',
+                                        blur: 8,
+                                        offsetX: 2,
+                                        offsetY: 2
+                                    })
+                                });
+                                break;
+                            case 'secret':
+                                activeObj.set({
+                                    text: '保密',
+                                    fill: '#d32f2f',
+                                    fontSize: 72,
+                                    opacity: 0.6,
+                                    fontWeight: 'bold',
+                                    shadow: new fabric.Shadow({
+                                        color: 'rgba(0,0,0,0.4)',
+                                        blur: 12,
+                                        offsetX: 3,
+                                        offsetY: 3
+                                    })
+                                });
+                                break;
+                            case 'top-secret':
+                                activeObj.set({
+                                    text: '绝密',
+                                    fill: '#b71c1c',
+                                    fontSize: 72,
+                                    opacity: 0.7,
+                                    fontWeight: '900',
+                                    shadow: new fabric.Shadow({
+                                        color: 'rgba(183,28,28,0.5)',
+                                        blur: 15,
+                                        offsetX: 2,
+                                        offsetY: 2
+                                    }),
+                                    stroke: '#ffcdd2',
+                                    strokeWidth: 1
+                                });
+                                break;
+                            case 'no-copy':
+                                activeObj.set({
+                                    text: '严禁复制',
+                                    fill: '#e65100',
+                                    fontSize: 56,
+                                    opacity: 0.6,
+                                    fontWeight: 'bold',
+                                    shadow: new fabric.Shadow({
+                                        color: 'rgba(0,0,0,0.4)',
+                                        blur: 10,
+                                        offsetX: 2,
+                                        offsetY: 2
+                                    }),
+                                    stroke: '#ffcc80',
+                                    strokeWidth: 0.5
+                                });
+                                break;
+                        }
+                        canvas.renderAll();
+                        // 更新面板上的控件值
+                        document.getElementById('text-color').value = this.toHexColor(activeObj.fill);
+                        document.getElementById('text-size').value = activeObj.fontSize;
+                        document.getElementById('text-size-value').textContent = activeObj.fontSize + 'px';
+                        document.getElementById('text-opacity').value = activeObj.opacity * 100;
+                        document.getElementById('text-opacity-value').textContent = Math.round(activeObj.opacity * 100) + '%';
+                    });
+                });
 
                 // 字体选择
                 document.getElementById('text-font').addEventListener('change', (e) => {
