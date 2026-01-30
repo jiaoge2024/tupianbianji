@@ -2533,46 +2533,80 @@ ${description}
     _drawFilmFrame(ctx, x, y, width, height, frameWidth) {
         // 胶片背景色（深黑色）
         const filmColor = '#0a0a0a';
-        const sprocketColor = '#1a1a1a';
+        const sprocketTrackColor = '#1a1a1a';
         
-        // 齿孔参数
-        const sprocketWidth = frameWidth * 0.4; // 齿孔区域宽度
-        const sprocketHeight = frameWidth * 0.25; // 齿孔高度
-        const sprocketSpacing = frameWidth * 0.5; // 齿孔间距
+        // 齿孔参数 - 增大尺寸使其更明显
+        const sprocketWidth = frameWidth * 0.5; // 齿孔区域宽度
+        const sprocketHeight = frameWidth * 0.35; // 齿孔高度
+        const sprocketSpacing = frameWidth * 0.6; // 齿孔间距
+        const sprocketHoleWidth = frameWidth * 0.3; // 齿孔洞宽度
+        const sprocketHoleHeight = frameWidth * 0.22; // 齿孔洞高度
         
         // 绘制胶片背景
         ctx.fillStyle = filmColor;
         ctx.fillRect(x, y, width, height);
         
-        // 绘制左右齿孔区域
-        ctx.fillStyle = sprocketColor;
+        // 绘制左右齿孔轨道区域（稍亮的黑色）
+        ctx.fillStyle = sprocketTrackColor;
         ctx.fillRect(x, y, sprocketWidth, height);
         ctx.fillRect(x + width - sprocketWidth, y, sprocketWidth, height);
         
-        // 绘制左侧齿孔（圆角矩形孔洞效果）
-        ctx.save();
-        ctx.globalCompositeOperation = 'destination-out';
+        // 绘制齿孔（白色孔洞效果）
         const leftSprocketX = x + sprocketWidth / 2;
         const rightSprocketX = x + width - sprocketWidth / 2;
         
+        ctx.fillStyle = '#2a2a2a'; // 齿孔颜色（比轨道稍亮）
+        
         for (let sy = y + sprocketSpacing; sy < y + height - sprocketSpacing; sy += sprocketSpacing + sprocketHeight) {
-            // 左侧齿孔
-            this._drawRoundedRect(ctx, leftSprocketX - sprocketWidth * 0.3, sy, sprocketWidth * 0.6, sprocketHeight, 3);
+            // 左侧齿孔 - 使用椭圆形状更像真实胶片
+            ctx.beginPath();
+            ctx.roundRect(
+                leftSprocketX - sprocketHoleWidth / 2, 
+                sy, 
+                sprocketHoleWidth, 
+                sprocketHoleHeight, 
+                3
+            );
             ctx.fill();
             
             // 右侧齿孔
-            this._drawRoundedRect(ctx, rightSprocketX - sprocketWidth * 0.3, sy, sprocketWidth * 0.6, sprocketHeight, 3);
+            ctx.beginPath();
+            ctx.roundRect(
+                rightSprocketX - sprocketHoleWidth / 2, 
+                sy, 
+                sprocketHoleWidth, 
+                sprocketHoleHeight, 
+                3
+            );
             ctx.fill();
+        }
+        
+        // 添加胶片纹理效果 - 垂直条纹
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = '#333';
+        for (let i = 0; i < width; i += 3) {
+            ctx.fillRect(x + i, y, 1, height);
         }
         ctx.restore();
         
-        // 添加胶片纹理效果
+        // 添加齿孔边缘高光效果
         ctx.save();
-        ctx.globalAlpha = 0.1;
-        ctx.fillStyle = '#333';
-        for (let i = 0; i < width; i += 2) {
-            ctx.fillRect(x + i, y, 1, height);
-        }
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        
+        // 左侧轨道边缘
+        ctx.beginPath();
+        ctx.moveTo(x + sprocketWidth, y);
+        ctx.lineTo(x + sprocketWidth, y + height);
+        ctx.stroke();
+        
+        // 右侧轨道边缘
+        ctx.beginPath();
+        ctx.moveTo(x + width - sprocketWidth, y);
+        ctx.lineTo(x + width - sprocketWidth, y + height);
+        ctx.stroke();
         ctx.restore();
     },
 
@@ -3684,8 +3718,8 @@ ${description}
                         <option value="gradient">渐变边框</option>
                         <option value="vintage">复古相框</option>
                         <option value="polaroid">拍立得</option>
-                        <option value="film">🎬 胶片边框</option>
-                        <option value="stamp">📮 邮票边框</option>
+                        <option value="film">胶片边框</option>
+                        <option value="stamp">邮票边框</option>
                         <option value="fluffy-white">毛绒绒·奶白</option>
                         <option value="fluffy-camel">毛绒绒·浅驼</option>
                         <option value="fluffy-pink">毛绒绒·樱花粉</option>
