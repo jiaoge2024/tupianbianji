@@ -22,8 +22,8 @@ const toolManager = {
     },
 
     activate(toolName) {
-        // 检查 canvas 是否已初始化
-        if (!window.canvas) {
+        // 检查 canvas 是否已初始化（批量操作不需要 canvas）
+        if (!window.canvas && toolName !== 'batch') {
             if (toolName !== 'select') {
                 alert('请先打开或上传一张图片');
             }
@@ -32,8 +32,10 @@ const toolManager = {
 
         // 如果点击的是当前已激活的工具，且不是'select'，则切换回'select'（实现取消当前工具的功能）
         // 排除支持连续操作的工具：shape（可添加多个形状）、text（可添加多个文字）、sticker（可添加多个贴纸）、image-watermark（可添加多个水印）
+        // 排除独立功能工具：batch（批量重命名）
         if (this.currentTool === toolName && toolName !== 'select' && 
-            toolName !== 'shape' && toolName !== 'text' && toolName !== 'sticker' && toolName !== 'image-watermark') {
+            toolName !== 'shape' && toolName !== 'text' && toolName !== 'sticker' && 
+            toolName !== 'image-watermark' && toolName !== 'batch') {
             this.activate('select');
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
             return;
@@ -45,7 +47,11 @@ const toolManager = {
         }
 
         this.currentTool = toolName;
-        this.resetCanvasState();
+        
+        // 批量操作不需要重置 canvas 状态
+        if (toolName !== 'batch') {
+            this.resetCanvasState();
+        }
 
         switch (toolName) {
             case 'select':
@@ -106,6 +112,9 @@ const toolManager = {
                 break;
             case 'magic-eraser':
                 this.initMagicEraser();
+                break;
+            case 'batch':
+                this.initBatchRename();
                 break;
         }
     },
@@ -5038,6 +5047,49 @@ ${description}
                 btn.textContent = '✨ 应用消除';
             }
             if (progressContainer) progressContainer.style.display = 'none';
+        }
+    },
+
+    // ==================== Batch Rename (批量重命名) ====================
+    initBatchRename() {
+        console.log('initBatchRename: 开始执行');
+
+        // 检查批量重命名模态框是否存在
+        const batchModal = document.getElementById('batch-modal');
+        if (!batchModal) {
+            console.error('批量重命名模态框不存在');
+            alert('批量重命名功能加载失败：找不到模态框元素');
+            return;
+        }
+
+        // 尝试直接打开模态框
+        try {
+            // 如果 openBatchRename 函数存在，使用它
+            if (typeof window.openBatchRename === 'function') {
+                console.log('使用 openBatchRename 函数');
+                window.openBatchRename();
+            } else {
+                // 否则直接操作模态框
+                console.log('直接操作模态框');
+                batchModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+
+                // 如果批量管理器不存在，创建一个
+                if (!window.batchRenameManager) {
+                    console.log('创建批量重命名管理器');
+                    // 动态加载批量重命名功能
+                    if (typeof BatchRenameManager !== 'undefined') {
+                        window.batchRenameManager = new BatchRenameManager();
+                    } else {
+                        console.error('BatchRenameManager 类未定义');
+                        alert('批量重命名功能加载失败，请刷新页面重试');
+                        return;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('打开批量重命名模态框失败:', error);
+            alert('批量重命名功能出错，请刷新页面重试');
         }
     }
 };

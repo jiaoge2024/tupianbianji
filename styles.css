@@ -1066,3 +1066,415 @@ input[type="range"]::-webkit-slider-thumb {
     display: none;
     transform: translate(-50%, -50%);
 }
+
+/* ==================== Batch Rename Styles ==================== */
+.batch-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.batch-modal.active {
+    display: flex;
+}
+
+.batch-modal-content {
+    background: rgba(44, 44, 46, 0.95);
+    border-radius: var(--radius-l);
+    width: 100%;
+    max-width: 700px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.batch-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(30, 30, 30, 0.5);
+}
+
+.batch-header h3 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.batch-close {
+    font-size: 24px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: color 0.2s;
+    line-height: 1;
+}
+
+.batch-close:hover {
+    color: var(--text-main);
+}
+
+.batch-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+/* 上传区域 */
+.batch-upload-section {
+    margin-bottom: 20px;
+}
+
+.batch-upload-area {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-m);
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: rgba(118, 118, 128, 0.05);
+}
+
+.batch-upload-area:hover {
+    border-color: var(--accent-color);
+    background: rgba(10, 132, 255, 0.05);
+}
+
+.batch-upload-area.dragover {
+    border-color: var(--accent-color);
+    background: rgba(10, 132, 255, 0.1);
+}
+
+.batch-upload-icon {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 10px;
+}
+
+.batch-upload-area p {
+    color: var(--text-main);
+    font-size: 14px;
+    margin: 0 0 5px;
+}
+
+.batch-sub-text {
+    color: var(--text-dim) !important;
+    font-size: 12px !important;
+}
+
+/* 图片列表 */
+.batch-list-section {
+    margin-bottom: 20px;
+    background: rgba(30, 30, 30, 0.5);
+    border-radius: var(--radius-m);
+    padding: 15px;
+}
+
+.batch-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.batch-list-header strong {
+    color: var(--accent-color);
+}
+
+.batch-clear-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: var(--radius-s);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.batch-clear-btn:hover {
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+}
+
+.batch-list-container {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.batch-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    background: rgba(118, 118, 128, 0.1);
+    border-radius: var(--radius-s);
+    transition: background 0.2s;
+}
+
+.batch-list-item:hover {
+    background: rgba(118, 118, 128, 0.2);
+}
+
+.batch-item-thumb {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: var(--radius-s);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.batch-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.batch-item-name {
+    font-size: 13px;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.batch-item-size {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.batch-item-remove {
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.batch-item-remove:hover {
+    color: var(--danger-color);
+}
+
+/* 重命名规则 */
+.batch-rename-section {
+    background: rgba(30, 30, 30, 0.5);
+    border-radius: var(--radius-m);
+    padding: 15px;
+}
+
+.batch-rename-section h4 {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+    margin: 0 0 15px;
+}
+
+.batch-rename-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.batch-label {
+    font-size: 13px;
+    color: var(--text-dim);
+    min-width: 70px;
+}
+
+.batch-checkbox,
+.batch-radio {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.batch-checkbox input,
+.batch-radio input {
+    cursor: pointer;
+}
+
+.batch-radio-group {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.batch-rename-row input[type="text"],
+.batch-rename-row input[type="number"],
+.batch-rename-row select {
+    background: rgba(118, 118, 128, 0.12);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-s);
+    color: var(--text-main);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: var(--font-stack);
+    transition: all 0.2s;
+}
+
+.batch-rename-row input[type="text"]:focus,
+.batch-rename-row input[type="number"]:focus,
+.batch-rename-row select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    background: rgba(118, 118, 128, 0.2);
+}
+
+.batch-rename-row input[type="text"] {
+    width: 150px;
+}
+
+.batch-rename-row input[type="number"] {
+    width: 80px;
+}
+
+.batch-rename-row select {
+    cursor: pointer;
+}
+
+.batch-rename-row select option {
+    background: #2c2c2e;
+    color: var(--text-main);
+}
+
+/* 预览区域 */
+.batch-preview-section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.batch-preview-section h4 {
+    margin-bottom: 12px;
+}
+
+.batch-preview-list {
+    max-height: 150px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-s);
+    padding: 10px;
+}
+
+.batch-preview-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.batch-preview-item:last-child {
+    border-bottom: none;
+}
+
+.batch-preview-old {
+    color: var(--text-dim);
+    text-decoration: line-through;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.batch-preview-arrow {
+    color: var(--text-muted);
+}
+
+.batch-preview-new {
+    color: var(--accent-color);
+    font-weight: 500;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.batch-empty-hint {
+    color: var(--text-dim);
+    font-size: 13px;
+    text-align: center;
+    padding: 20px;
+    margin: 0;
+}
+
+/* 底部按钮 */
+.batch-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+    background: rgba(30, 30, 30, 0.5);
+}
+
+.batch-primary-btn,
+.batch-secondary-btn {
+    padding: 10px 20px;
+    border-radius: var(--radius-m);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-family: var(--font-stack);
+}
+
+.batch-primary-btn {
+    background: var(--accent-gradient);
+    color: white;
+}
+
+.batch-primary-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.batch-primary-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.batch-secondary-btn {
+    background: rgba(118, 118, 128, 0.2);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
+.batch-secondary-btn:hover {
+    background: rgba(118, 118, 128, 0.3);
+}
+
+.batch-secondary-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

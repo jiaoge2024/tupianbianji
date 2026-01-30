@@ -182,9 +182,11 @@ window.addEventListener('paste', (e) => {
 // Tool Selection
 document.querySelectorAll('.tool-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        console.log('工具按钮被点击:', btn.dataset.tool);
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const tool = btn.dataset.tool;
+        console.log('激活工具:', tool);
         toolManager.activate(tool);
     });
 });

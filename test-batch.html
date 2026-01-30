@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批量重命名测试</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="lib/jszip.min.js"></script>
+</head>
+<body>
+    <div style="padding: 20px;">
+        <h1>批量重命名功能测试</h1>
+        <button id="test-batch-btn" class="tool-btn">测试批量重命名</button>
+        <button id="direct-open-btn" style="margin-left: 10px;">直接打开模态框</button>
+
+        <div style="margin-top: 20px;">
+            <h3>调试信息：</h3>
+            <div id="debug-info" style="background: #f0f0f0; padding: 10px; font-family: monospace;"></div>
+        </div>
+    </div>
+
+    <!-- 批量操作 Modal -->
+    <div id="batch-modal" class="batch-modal" style="display: none;">
+        <div class="batch-modal-content">
+            <div class="batch-header">
+                <h3>📦 批量重命名</h3>
+                <span class="batch-close" id="batch-close">&times;</span>
+            </div>
+
+            <div class="batch-body">
+                <!-- 上传区域 -->
+                <div class="batch-upload-section">
+                    <div class="batch-upload-area" id="batch-upload-area">
+                        <span class="batch-upload-icon">📁</span>
+                        <p>点击或拖拽上传图片</p>
+                        <p class="batch-sub-text">支持多选，可同时上传多张图片</p>
+                        <input type="file" id="batch-file-input" accept="image/*" multiple hidden>
+                    </div>
+                </div>
+
+                <!-- 图片列表 -->
+                <div class="batch-list-section" id="batch-list-section" style="display: none;">
+                    <div class="batch-list-header">
+                        <span>已选择 <strong id="batch-count">0</strong> 张图片</span>
+                        <button class="batch-clear-btn" id="batch-clear">清空</button>
+                    </div>
+                    <div class="batch-list-container" id="batch-list-container">
+                        <!-- 图片列表项将动态插入 -->
+                    </div>
+                </div>
+
+                <!-- 重命名规则 -->
+                <div class="batch-rename-section">
+                    <h4>📝 重命名规则</h4>
+
+                    <!-- 前缀/后缀 -->
+                    <div class="batch-rename-row">
+                        <label class="batch-checkbox">
+                            <input type="checkbox" id="batch-use-prefix" checked>
+                            <span>添加前缀</span>
+                        </label>
+                        <input type="text" id="batch-prefix" placeholder="输入前缀" value="image_">
+                    </div>
+
+                    <div class="batch-rename-row">
+                        <label class="batch-checkbox">
+                            <input type="checkbox" id="batch-use-suffix">
+                            <span>添加后缀</span>
+                        </label>
+                        <input type="text" id="batch-suffix" placeholder="输入后缀">
+                    </div>
+
+                    <!-- 命名方式 -->
+                    <div class="batch-rename-row">
+                        <span class="batch-label">命名方式：</span>
+                        <div class="batch-radio-group">
+                            <label class="batch-radio">
+                                <input type="radio" name="batch-naming" value="sequence" checked>
+                                <span>序号 (001, 002...)</span>
+                            </label>
+                            <label class="batch-radio">
+                                <input type="radio" name="batch-naming" value="timestamp">
+                                <span>时间戳</span>
+                            </label>
+                            <label class="batch-radio">
+                                <input type="radio" name="batch-naming" value="datetime">
+                                <span>日期时间</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 起始序号 -->
+                    <div class="batch-rename-row" id="batch-start-num-row">
+                        <span class="batch-label">起始序号：</span>
+                        <input type="number" id="batch-start-num" value="1" min="0" max="9999">
+                        <span class="batch-label" style="margin-left: 15px;">位数：</span>
+                        <select id="batch-num-digits">
+                            <option value="2">2位 (01)</option>
+                            <option value="3" selected>3位 (001)</option>
+                            <option value="4">4位 (0001)</option>
+                            <option value="5">5位 (00001)</option>
+                        </select>
+                    </div>
+
+                    <!-- 预览 -->
+                    <div class="batch-preview-section">
+                        <h4>👁️ 预览</h4>
+                        <div class="batch-preview-list" id="batch-preview-list">
+                            <p class="batch-empty-hint">请先上传图片</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部操作按钮 -->
+            <div class="batch-footer">
+                <button class="batch-secondary-btn" id="batch-export">📥 导出到本地</button>
+                <button class="batch-primary-btn" id="batch-overwrite">💾 覆盖原图片</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="scripts/batch.js"></script>
+    <script>
+        const debugInfo = document.getElementById('debug-info');
+
+        function log(message) {
+            console.log(message);
+            debugInfo.innerHTML += message + '<br>';
+        }
+
+        // 测试批量重命名按钮
+        document.getElementById('test-batch-btn').addEventListener('click', function() {
+            log('测试按钮被点击');
+
+            // 检查 BatchRenameManager 是否存在
+            if (typeof BatchRenameManager !== 'undefined') {
+                log('✓ BatchRenameManager 类存在');
+            } else {
+                log('✗ BatchRenameManager 类不存在');
+                return;
+            }
+
+            // 检查 openBatchRename 函数是否存在
+            if (typeof window.openBatchRename === 'function') {
+                log('✓ openBatchRename 函数存在');
+                try {
+                    window.openBatchRename();
+                    log('✓ 成功调用 openBatchRename');
+                } catch (error) {
+                    log('✗ 调用 openBatchRename 失败: ' + error.message);
+                }
+            } else {
+                log('✗ openBatchRename 函数不存在');
+
+                // 尝试直接创建管理器
+                try {
+                    if (!window.batchRenameManager) {
+                        window.batchRenameManager = new BatchRenameManager();
+                        log('✓ 创建了新的 BatchRenameManager 实例');
+                    }
+                    window.batchRenameManager.openModal();
+                    log('✓ 成功打开模态框');
+                } catch (error) {
+                    log('✗ 创建管理器或打开模态框失败: ' + error.message);
+                }
+            }
+        });
+
+        // 直接打开模态框按钮
+        document.getElementById('direct-open-btn').addEventListener('click', function() {
+            log('直接打开模态框按钮被点击');
+            const modal = document.getElementById('batch-modal');
+            if (modal) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                log('✓ 直接打开模态框成功');
+            } else {
+                log('✗ 找不到模态框元素');
+            }
+        });
+
+        // 页面加载完成后的检查
+        window.addEventListener('load', function() {
+            log('页面加载完成，开始检查...');
+
+            // 检查必要的元素
+            const modal = document.getElementById('batch-modal');
+            log(modal ? '✓ batch-modal 元素存在' : '✗ batch-modal 元素不存在');
+
+            const uploadArea = document.getElementById('batch-upload-area');
+            log(uploadArea ? '✓ batch-upload-area 元素存在' : '✗ batch-upload-area 元素不存在');
+
+            // 检查 JSZip
+            log(typeof JSZip !== 'undefined' ? '✓ JSZip 库已加载' : '✗ JSZip 库未加载');
+
+            // 检查批量重命名相关的全局变量和函数
+            log(typeof BatchRenameManager !== 'undefined' ? '✓ BatchRenameManager 类可用' : '✗ BatchRenameManager 类不可用');
+            log(typeof window.openBatchRename === 'function' ? '✓ openBatchRename 函数可用' : '✗ openBatchRename 函数不可用');
+            log(window.batchRenameManager ? '✓ batchRenameManager 实例存在' : '✗ batchRenameManager 实例不存在');
+        });
+    </script>
+</body>
+</html>

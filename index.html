@@ -93,6 +93,10 @@
                             <button class="tool-btn" data-tool="ocr">OCR识别</button>
                             <button class="tool-btn" data-tool="ai-gen">AI生图</button>
                         </div>
+                        <div class="tool-group">
+                            <h3>批量操作</h3>
+                            <button class="tool-btn" data-tool="batch">批量重命名</button>
+                        </div>
                     </div>
 
                     <!-- 动态属性面板 -->
@@ -266,12 +270,114 @@
         </div>
     </div>
 
+    <!-- 批量操作 Modal -->
+    <div id="batch-modal" class="batch-modal" style="display: none;">
+        <div class="batch-modal-content">
+            <div class="batch-header">
+                <h3>📦 批量重命名</h3>
+                <span class="batch-close" id="batch-close">&times;</span>
+            </div>
+            
+            <div class="batch-body">
+                <!-- 上传区域 -->
+                <div class="batch-upload-section">
+                    <div class="batch-upload-area" id="batch-upload-area">
+                        <span class="batch-upload-icon">📁</span>
+                        <p>点击或拖拽上传图片</p>
+                        <p class="batch-sub-text">支持多选，可同时上传多张图片</p>
+                        <input type="file" id="batch-file-input" accept="image/*" multiple hidden>
+                    </div>
+                </div>
+
+                <!-- 图片列表 -->
+                <div class="batch-list-section" id="batch-list-section" style="display: none;">
+                    <div class="batch-list-header">
+                        <span>已选择 <strong id="batch-count">0</strong> 张图片</span>
+                        <button class="batch-clear-btn" id="batch-clear">清空</button>
+                    </div>
+                    <div class="batch-list-container" id="batch-list-container">
+                        <!-- 图片列表项将动态插入 -->
+                    </div>
+                </div>
+
+                <!-- 重命名规则 -->
+                <div class="batch-rename-section">
+                    <h4>📝 重命名规则</h4>
+                    
+                    <!-- 前缀/后缀 -->
+                    <div class="batch-rename-row">
+                        <label class="batch-checkbox">
+                            <input type="checkbox" id="batch-use-prefix" checked>
+                            <span>添加前缀</span>
+                        </label>
+                        <input type="text" id="batch-prefix" placeholder="输入前缀" value="image_">
+                    </div>
+                    
+                    <div class="batch-rename-row">
+                        <label class="batch-checkbox">
+                            <input type="checkbox" id="batch-use-suffix">
+                            <span>添加后缀</span>
+                        </label>
+                        <input type="text" id="batch-suffix" placeholder="输入后缀">
+                    </div>
+
+                    <!-- 命名方式 -->
+                    <div class="batch-rename-row">
+                        <span class="batch-label">命名方式：</span>
+                        <div class="batch-radio-group">
+                            <label class="batch-radio">
+                                <input type="radio" name="batch-naming" value="sequence" checked>
+                                <span>序号 (001, 002...)</span>
+                            </label>
+                            <label class="batch-radio">
+                                <input type="radio" name="batch-naming" value="timestamp">
+                                <span>时间戳</span>
+                            </label>
+                            <label class="batch-radio">
+                                <input type="radio" name="batch-naming" value="datetime">
+                                <span>日期时间</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 起始序号 -->
+                    <div class="batch-rename-row" id="batch-start-num-row">
+                        <span class="batch-label">起始序号：</span>
+                        <input type="number" id="batch-start-num" value="1" min="0" max="9999">
+                        <span class="batch-label" style="margin-left: 15px;">位数：</span>
+                        <select id="batch-num-digits">
+                            <option value="2">2位 (01)</option>
+                            <option value="3" selected>3位 (001)</option>
+                            <option value="4">4位 (0001)</option>
+                            <option value="5">5位 (00001)</option>
+                        </select>
+                    </div>
+
+                    <!-- 预览 -->
+                    <div class="batch-preview-section">
+                        <h4>👁️ 预览</h4>
+                        <div class="batch-preview-list" id="batch-preview-list">
+                            <p class="batch-empty-hint">请先上传图片</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部操作按钮 -->
+            <div class="batch-footer">
+                <button class="batch-secondary-btn" id="batch-export">📥 导出到本地</button>
+                <button class="batch-primary-btn" id="batch-overwrite">💾 覆盖原图片</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 核心逻辑 -->
     <script src="scripts/history.js"></script>
     <!-- ONNX Runtime Web for AI inpainting (WASM-only build) -->
     <script src="lib/ort.wasm.min.js"></script>
     <script src="scripts/lama-inpaint.js"></script>
     <script src="scripts/tools.js"></script>
+    <script src="scripts/batch.js"></script>
     <script src="scripts/main.js"></script>
 </body>
 
