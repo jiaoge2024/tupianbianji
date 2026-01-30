@@ -2472,6 +2472,12 @@ ${description}
         if (isFluffy) {
             // 毛绒绒风格使用圆角矩形背景
             this._drawRoundedRectWithFluffy(ctx, 0, 0, width, height, 20, fluffyColor);
+        } else if (frameType === 'film') {
+            // 胶片边框：黑色背景带齿孔
+            this._drawFilmFrame(ctx, 0, 0, width, height, frameWidth);
+        } else if (frameType === 'stamp') {
+            // 邮票边框：白色背景带齿孔边缘
+            this._drawStampFrame(ctx, 0, 0, width, height, frameWidth);
         } else {
             switch (frameType) {
                 case 'none':
@@ -2513,6 +2519,143 @@ ${description}
                 ctx.fillRect(0, 0, width, height);
             }
         }
+    },
+
+    /**
+     * 绘制胶片边框（带齿孔效果）
+     * @param {CanvasRenderingContext2D} ctx - Canvas 上下文
+     * @param {number} x - 起始 X 坐标
+     * @param {number} y - 起始 Y 坐标
+     * @param {number} width - 宽度
+     * @param {number} height - 高度
+     * @param {number} frameWidth - 边框宽度
+     */
+    _drawFilmFrame(ctx, x, y, width, height, frameWidth) {
+        // 胶片背景色（深黑色）
+        const filmColor = '#0a0a0a';
+        const sprocketColor = '#1a1a1a';
+        
+        // 齿孔参数
+        const sprocketWidth = frameWidth * 0.4; // 齿孔区域宽度
+        const sprocketHeight = frameWidth * 0.25; // 齿孔高度
+        const sprocketSpacing = frameWidth * 0.5; // 齿孔间距
+        
+        // 绘制胶片背景
+        ctx.fillStyle = filmColor;
+        ctx.fillRect(x, y, width, height);
+        
+        // 绘制左右齿孔区域
+        ctx.fillStyle = sprocketColor;
+        ctx.fillRect(x, y, sprocketWidth, height);
+        ctx.fillRect(x + width - sprocketWidth, y, sprocketWidth, height);
+        
+        // 绘制左侧齿孔（圆角矩形孔洞效果）
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        const leftSprocketX = x + sprocketWidth / 2;
+        const rightSprocketX = x + width - sprocketWidth / 2;
+        
+        for (let sy = y + sprocketSpacing; sy < y + height - sprocketSpacing; sy += sprocketSpacing + sprocketHeight) {
+            // 左侧齿孔
+            this._drawRoundedRect(ctx, leftSprocketX - sprocketWidth * 0.3, sy, sprocketWidth * 0.6, sprocketHeight, 3);
+            ctx.fill();
+            
+            // 右侧齿孔
+            this._drawRoundedRect(ctx, rightSprocketX - sprocketWidth * 0.3, sy, sprocketWidth * 0.6, sprocketHeight, 3);
+            ctx.fill();
+        }
+        ctx.restore();
+        
+        // 添加胶片纹理效果
+        ctx.save();
+        ctx.globalAlpha = 0.1;
+        ctx.fillStyle = '#333';
+        for (let i = 0; i < width; i += 2) {
+            ctx.fillRect(x + i, y, 1, height);
+        }
+        ctx.restore();
+    },
+
+    /**
+     * 绘制邮票边框（带齿孔边缘）
+     * @param {CanvasRenderingContext2D} ctx - Canvas 上下文
+     * @param {number} x - 起始 X 坐标
+     * @param {number} y - 起始 Y 坐标
+     * @param {number} width - 宽度
+     * @param {number} height - 高度
+     * @param {number} frameWidth - 边框宽度
+     */
+    _drawStampFrame(ctx, x, y, width, height, frameWidth) {
+        // 邮票背景色（米白色，模拟纸张质感）
+        const stampColor = '#f8f6f0';
+        const perforationRadius = frameWidth * 0.15; // 齿孔半径
+        const perforationSpacing = frameWidth * 0.4; // 齿孔间距
+        
+        // 创建带齿孔的路径
+        ctx.beginPath();
+        
+        // 上边（带齿孔）
+        ctx.moveTo(x + perforationRadius * 2, y);
+        for (let px = x + perforationRadius * 2; px < x + width - perforationRadius * 2; px += perforationSpacing) {
+            ctx.lineTo(px + perforationSpacing * 0.3, y);
+            ctx.arc(px + perforationSpacing * 0.5, y, perforationRadius, Math.PI, 0, true);
+            ctx.lineTo(px + perforationSpacing * 0.7, y);
+        }
+        ctx.lineTo(x + width - perforationRadius * 2, y);
+        
+        // 右边（带齿孔）
+        ctx.lineTo(x + width, y + perforationRadius * 2);
+        for (let py = y + perforationRadius * 2; py < y + height - perforationRadius * 2; py += perforationSpacing) {
+            ctx.lineTo(x + width, py + perforationSpacing * 0.3);
+            ctx.arc(x + width, py + perforationSpacing * 0.5, perforationRadius, -Math.PI / 2, Math.PI / 2, true);
+            ctx.lineTo(x + width, py + perforationSpacing * 0.7);
+        }
+        ctx.lineTo(x + width, y + height - perforationRadius * 2);
+        
+        // 下边（带齿孔）
+        ctx.lineTo(x + width - perforationRadius * 2, y + height);
+        for (let px = x + width - perforationRadius * 2; px > x + perforationRadius * 2; px -= perforationSpacing) {
+            ctx.lineTo(px - perforationSpacing * 0.3, y + height);
+            ctx.arc(px - perforationSpacing * 0.5, y + height, perforationRadius, 0, Math.PI, true);
+            ctx.lineTo(px - perforationSpacing * 0.7, y + height);
+        }
+        ctx.lineTo(x + perforationRadius * 2, y + height);
+        
+        // 左边（带齿孔）
+        ctx.lineTo(x, y + height - perforationRadius * 2);
+        for (let py = y + height - perforationRadius * 2; py > y + perforationRadius * 2; py -= perforationSpacing) {
+            ctx.lineTo(x, py - perforationSpacing * 0.3);
+            ctx.arc(x, py - perforationSpacing * 0.5, perforationRadius, Math.PI / 2, -Math.PI / 2, true);
+            ctx.lineTo(x, py - perforationSpacing * 0.7);
+        }
+        ctx.lineTo(x, y + perforationRadius * 2);
+        ctx.closePath();
+        
+        // 填充邮票背景
+        ctx.fillStyle = stampColor;
+        ctx.fill();
+        
+        // 添加纸张纹理效果
+        ctx.save();
+        ctx.globalAlpha = 0.05;
+        ctx.fillStyle = '#8b7355';
+        for (let i = 0; i < width; i += 3) {
+            for (let j = 0; j < height; j += 3) {
+                if (Math.random() > 0.7) {
+                    ctx.fillRect(x + i, y + j, 1, 1);
+                }
+            }
+        }
+        ctx.restore();
+        
+        // 绘制内边框线（模拟邮票的印刷边框）
+        ctx.save();
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 3]);
+        const innerMargin = frameWidth * 0.6;
+        ctx.strokeRect(x + innerMargin, y + innerMargin, width - innerMargin * 2, height - innerMargin * 2);
+        ctx.restore();
     },
 
     _drawRoundedRectWithFluffy(ctx, x, y, width, height, radius, color) {
@@ -3541,6 +3684,8 @@ ${description}
                         <option value="gradient">渐变边框</option>
                         <option value="vintage">复古相框</option>
                         <option value="polaroid">拍立得</option>
+                        <option value="film">🎬 胶片边框</option>
+                        <option value="stamp">📮 邮票边框</option>
                         <option value="fluffy-white">毛绒绒·奶白</option>
                         <option value="fluffy-camel">毛绒绒·浅驼</option>
                         <option value="fluffy-pink">毛绒绒·樱花粉</option>
@@ -3562,7 +3707,7 @@ ${description}
                     <span id="frame-width-value" style="color:#3b82f6;">30px</span>
                 </div>
                 <button id="apply-frame" class="primary-btn" style="width:100%; margin-top:10px;">应用效果</button>
-                <p style="font-size:11px; color:#888; margin-top:10px;">提示：选择拍立得效果时，底部边框会更宽以模拟拍立得相纸。毛绒绒风格适合宠物、儿童、软萌风图片。</p>
+                <p style="font-size:11px; color:#888; margin-top:10px;">提示：拍立得效果底部边框更宽；胶片边框带有电影齿孔效果，充满复古感；邮票边框带有齿孔边缘，适合制作个性化邮票效果；毛绒绒风格适合宠物、儿童、软萌风图片。</p>
 `;
 
             document.getElementById('frame-width').addEventListener('input', (e) => {
