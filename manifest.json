@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "极简图片编辑器",
-  "version": "2.11.0",
+  "version": "2.12.0",
   "description": "即开即修，本地处理，安全隐私。支持裁剪、缩放、马赛克及水印。",
   "icons": {
     "16": "extension-icons/icon-16x16.png",
