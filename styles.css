@@ -1478,3 +1478,411 @@ input[type="range"]::-webkit-slider-thumb {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ========== 拼图功能样式 ========== */
+.collage-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.collage-modal-content {
+    width: 95%;
+    max-width: 1100px;
+    max-height: 90vh;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-l);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.collage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(30, 30, 30, 0.5);
+}
+
+.collage-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.collage-close {
+    font-size: 24px;
+    color: var(--text-muted);
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.collage-close:hover {
+    color: var(--text-main);
+}
+
+.collage-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    gap: 16px;
+    padding: 16px;
+}
+
+/* 左侧：模板选择 */
+.collage-templates {
+    width: 200px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    max-height: calc(90vh - 120px);
+}
+
+.collage-templates h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.collage-template-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.collage-template-item {
+    background: var(--bg-tertiary);
+    border: 2px solid transparent;
+    border-radius: var(--radius-s);
+    padding: 6px 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.collage-template-item:hover {
+    background: rgba(88, 166, 255, 0.1);
+    border-color: var(--accent-color);
+}
+
+.collage-template-item.selected {
+    background: rgba(88, 166, 255, 0.15);
+    border-color: var(--accent-color);
+}
+
+.collage-template-preview {
+    width: 40px;
+    height: 40px;
+}
+
+.collage-template-name {
+    font-size: 11px;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+/* 中间：编辑区 */
+.collage-editor {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-m);
+    min-height: 400px;
+}
+
+.collage-canvas-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#collage-canvas {
+    max-width: 100%;
+    max-height: 500px;
+    border-radius: var(--radius-s);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.collage-canvas-container.dragover {
+    outline: 2px dashed var(--accent-color);
+    outline-offset: 10px;
+    border-radius: var(--radius-m);
+}
+
+.collage-empty-hint {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    pointer-events: none;
+}
+
+.collage-empty-hint span {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.collage-empty-hint p {
+    margin: 0;
+    font-size: 14px;
+}
+
+.collage-sub-text {
+    font-size: 12px !important;
+    color: var(--text-muted) !important;
+    margin-top: 4px !important;
+}
+
+/* 右侧：图片列表 */
+.collage-images {
+    width: 200px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.collage-images h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+.collage-images h4 span {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.collage-sort-hint {
+    margin: -8px 0 12px 0;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.collage-upload-area {
+    background: var(--bg-tertiary);
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius-m);
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+}
+
+.collage-upload-area:hover {
+    border-color: var(--accent-color);
+    background: rgba(88, 166, 255, 0.05);
+}
+
+.collage-upload-area span {
+    font-size: 24px;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 8px;
+}
+
+.collage-upload-area p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.collage-image-list {
+    flex: 1;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    align-content: start;
+}
+
+.collage-image-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--radius-s);
+    overflow: hidden;
+    cursor: grab;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.collage-image-item:hover {
+    border-color: var(--accent-color);
+}
+
+.collage-image-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.collage-image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.collage-image-number {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.collage-image-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    background: rgba(255, 59, 48, 0.9);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.collage-image-item:hover .collage-image-remove {
+    opacity: 1;
+}
+
+/* 选中交换状态 */
+.collage-image-item.selected-swap {
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.3);
+}
+
+.collage-image-item.selected-swap .collage-swap-hint {
+    display: block;
+    background: #10b981;
+}
+
+.collage-swap-hint {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(88, 166, 255, 0.9);
+    color: white;
+    font-size: 11px;
+    padding: 3px 0;
+    text-align: center;
+    display: none;
+}
+
+.collage-image-item:hover .collage-swap-hint {
+    display: block;
+}
+
+/* 交换提示通知 */
+.collage-swap-notification {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent-gradient);
+    color: white;
+    padding: 8px 16px;
+    border-radius: var(--radius-m);
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 10;
+    animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* 底部按钮 */
+.collage-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+    background: rgba(30, 30, 30, 0.5);
+}
+
+.collage-primary-btn,
+.collage-secondary-btn {
+    padding: 10px 20px;
+    border-radius: var(--radius-m);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-family: var(--font-stack);
+}
+
+.collage-primary-btn {
+    background: var(--accent-gradient);
+    color: white;
+}
+
+.collage-primary-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.collage-primary-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.collage-secondary-btn {
+    background: rgba(118, 118, 128, 0.2);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
+.collage-secondary-btn:hover {
+    background: rgba(118, 118, 128, 0.3);
+}
+
+.collage-secondary-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

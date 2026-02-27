@@ -96,6 +96,7 @@
                         <div class="tool-group">
                             <h3>批量操作</h3>
                             <button class="tool-btn" data-tool="batch">批量重命名</button>
+                            <button class="tool-btn" data-tool="collage">拼图</button>
                         </div>
                     </div>
 
@@ -277,7 +278,7 @@
                 <h3>📦 批量重命名</h3>
                 <span class="batch-close" id="batch-close">&times;</span>
             </div>
-            
+
             <div class="batch-body">
                 <!-- 上传区域 -->
                 <div class="batch-upload-section">
@@ -303,7 +304,7 @@
                 <!-- 重命名规则 -->
                 <div class="batch-rename-section">
                     <h4>📝 重命名规则</h4>
-                    
+
                     <!-- 前缀/后缀 -->
                     <div class="batch-rename-row">
                         <label class="batch-checkbox">
@@ -312,7 +313,7 @@
                         </label>
                         <input type="text" id="batch-prefix" placeholder="输入前缀" value="image_">
                     </div>
-                    
+
                     <div class="batch-rename-row">
                         <label class="batch-checkbox">
                             <input type="checkbox" id="batch-use-suffix">
@@ -371,6 +372,58 @@
         </div>
     </div>
 
+    <!-- 拼图功能 Modal -->
+    <div id="collage-modal" class="collage-modal" style="display: none;">
+        <div class="collage-modal-content">
+            <div class="collage-header">
+                <h3>🧩 拼图</h3>
+                <span class="collage-close" id="collage-close">&times;</span>
+            </div>
+
+            <div class="collage-body">
+                <!-- 左侧：模板选择 -->
+                <div class="collage-templates">
+                    <h4>📐 选择模板</h4>
+                    <div class="collage-template-grid" id="collage-template-grid">
+                        <!-- 模板将通过 JS 动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 中间：拼图编辑区 -->
+                <div class="collage-editor">
+                    <div class="collage-canvas-container" id="collage-canvas-container">
+                        <canvas id="collage-canvas"></canvas>
+                        <div class="collage-empty-hint" id="collage-empty-hint">
+                            <span>🖼️</span>
+                            <p>点击或拖拽上传图片</p>
+                            <p class="collage-sub-text">最多9张图片</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：图片列表 -->
+                <div class="collage-images">
+                    <h4>🖼️ 已添加图片 <span id="collage-count">0</span>/9</h4>
+                    <p class="collage-sort-hint">💡 拖拽或点击两张图片交换位置</p>
+                    <div class="collage-upload-area" id="collage-upload-area">
+                        <span>+</span>
+                        <p>点击添加图片</p>
+                        <input type="file" id="collage-file-input" accept="image/*" multiple hidden>
+                    </div>
+                    <div class="collage-image-list" id="collage-image-list">
+                        <!-- 图片列表项将动态插入 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部操作按钮 -->
+            <div class="collage-footer">
+                <button class="collage-secondary-btn" id="collage-clear">🗑️ 清空</button>
+                <button class="collage-primary-btn" id="collage-download">💾 保存到本地</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 核心逻辑 -->
     <script src="scripts/history.js"></script>
     <!-- ONNX Runtime Web for AI inpainting (WASM-only build) -->
@@ -378,6 +431,7 @@
     <script src="scripts/lama-inpaint.js"></script>
     <script src="scripts/tools.js"></script>
     <script src="scripts/batch.js"></script>
+    <script src="scripts/collage.js"></script>
     <script src="scripts/main.js"></script>
 </body>
 

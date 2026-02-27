@@ -23,7 +23,7 @@ const toolManager = {
 
     activate(toolName) {
         // 检查 canvas 是否已初始化（批量操作不需要 canvas）
-        if (!window.canvas && toolName !== 'batch') {
+        if (!window.canvas && toolName !== 'batch' && toolName !== 'collage') {
             if (toolName !== 'select') {
                 alert('请先打开或上传一张图片');
             }
@@ -32,10 +32,10 @@ const toolManager = {
 
         // 如果点击的是当前已激活的工具，且不是'select'，则切换回'select'（实现取消当前工具的功能）
         // 排除支持连续操作的工具：shape（可添加多个形状）、text（可添加多个文字）、sticker（可添加多个贴纸）、image-watermark（可添加多个水印）
-        // 排除独立功能工具：batch（批量重命名）
-        if (this.currentTool === toolName && toolName !== 'select' && 
-            toolName !== 'shape' && toolName !== 'text' && toolName !== 'sticker' && 
-            toolName !== 'image-watermark' && toolName !== 'batch') {
+        // 排除独立功能工具：batch（批量重命名）、collage（拼图）
+        if (this.currentTool === toolName && toolName !== 'select' &&
+            toolName !== 'shape' && toolName !== 'text' && toolName !== 'sticker' &&
+            toolName !== 'image-watermark' && toolName !== 'batch' && toolName !== 'collage') {
             this.activate('select');
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
             return;
@@ -47,9 +47,9 @@ const toolManager = {
         }
 
         this.currentTool = toolName;
-        
+
         // 批量操作不需要重置 canvas 状态
-        if (toolName !== 'batch') {
+        if (toolName !== 'batch' && toolName !== 'collage') {
             this.resetCanvasState();
         }
 
@@ -115,6 +115,9 @@ const toolManager = {
                 break;
             case 'batch':
                 this.initBatchRename();
+                break;
+            case 'collage':
+                this.initCollage();
                 break;
         }
     },
@@ -5269,6 +5272,36 @@ ${description}
         } catch (error) {
             console.error('打开批量重命名模态框失败:', error);
             alert('批量重命名功能出错，请刷新页面重试');
+        }
+    },
+
+    // ==================== Collage (拼图) ====================
+    initCollage() {
+        console.log('initCollage: 开始执行');
+
+        // 检查拼图模态框是否存在
+        const collageModal = document.getElementById('collage-modal');
+        if (!collageModal) {
+            console.error('拼图模态框不存在');
+            alert('拼图功能加载失败：找不到模态框元素');
+            return;
+        }
+
+        // 尝试直接打开模态框
+        try {
+            // 如果 openCollage 函数存在，使用它
+            if (typeof window.openCollage === 'function') {
+                console.log('使用 openCollage 函数');
+                window.openCollage();
+            } else {
+                // 否则直接操作模态框
+                console.log('直接操作模态框');
+                collageModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        } catch (error) {
+            console.error('打开拼图模态框失败:', error);
+            alert('拼图功能出错，请刷新页面重试');
         }
     }
 };
