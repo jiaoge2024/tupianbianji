@@ -2344,7 +2344,7 @@ ${description}
 
     /**
      * 应用一键滤镜预设
-     * @param {string} preset - 滤镜预设名称 ('film', 'cyberpunk', 'japanese')
+     * @param {string} preset - 滤镜预设名称 ('film', 'cyberpunk', 'japanese', 'korean', 'sunset', 'bw')
      */
     applyPresetFilter(preset) {
         const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
@@ -2400,6 +2400,53 @@ ${description}
                     alpha: 0.2
                 }));
                 break;
+
+            case 'korean':
+                // 韩系ins风：低饱和 + 冷色调 + 紫色倾向 + 干净背景
+                brightness = 0.1;
+                contrast = -0.05;
+                saturation = -0.15;
+                // 添加淡紫色调营造冷白皮效果
+                baseImage.filters.push(new fabric.Image.filters.BlendColor({
+                    color: '#e8d5e0',
+                    mode: 'tint',
+                    alpha: 0.15
+                }));
+                // 轻微提高亮度营造干净感
+                baseImage.filters.push(new fabric.Image.filters.Gamma({
+                    gamma: [1.1, 1.05, 1.0]
+                }));
+                break;
+
+            case 'sunset':
+                // 电影感日落：强暖调 + 橙色主导 + 柔和高光
+                brightness = 0.05;
+                contrast = 0.1;
+                saturation = 0.15;
+                // 添加暖橙色调
+                baseImage.filters.push(new fabric.Image.filters.BlendColor({
+                    color: '#ff8c42',
+                    mode: 'tint',
+                    alpha: 0.25
+                }));
+                // 添加棕褐色增强温暖感
+                baseImage.filters.push(new fabric.Image.filters.Sepia());
+                break;
+
+            case 'bw':
+                // 黑白对比：去色 + 强对比 + 红色滤镜效应
+                saturation = -1; // 完全去色
+                contrast = 0.35;
+                brightness = 0.05;
+                // 转换为灰度
+                baseImage.filters.push(new fabric.Image.filters.Grayscale());
+                // 添加红色滤镜效应（模拟传统黑白摄影红滤镜效果）
+                baseImage.filters.push(new fabric.Image.filters.BlendColor({
+                    color: '#ff0000',
+                    mode: 'tint',
+                    alpha: 0.08
+                }));
+                break;
         }
 
         // 添加基础滤镜
@@ -2445,7 +2492,10 @@ ${description}
         const presetNames = {
             'film': '🎞️ 胶片风',
             'cyberpunk': '🌃 赛博朋克',
-            'japanese': '🌸 日系清新'
+            'japanese': '🌸 日系清新',
+            'korean': '✨ 韩系ins',
+            'sunset': '🌅 电影日落',
+            'bw': '⚫ 黑白对比'
         };
         console.log(`[滤镜] 已应用 ${presetNames[preset]} 效果`);
     },
@@ -3875,6 +3925,15 @@ ${description}
                         </button>
                         <button class="filter-preset-btn" data-preset="japanese" style="padding:10px 5px; background:linear-gradient(135deg, #87CEEB, #E0F6FF); border:none; border-radius:6px; color:#333; font-size:12px; cursor:pointer; transition:all 0.2s;">
                             🌸 日系清新
+                        </button>
+                        <button class="filter-preset-btn" data-preset="korean" style="padding:10px 5px; background:linear-gradient(135deg, #E8D5E0, #F5F5F5); border:none; border-radius:6px; color:#555; font-size:12px; cursor:pointer; transition:all 0.2s;">
+                            ✨ 韩系ins
+                        </button>
+                        <button class="filter-preset-btn" data-preset="sunset" style="padding:10px 5px; background:linear-gradient(135deg, #FF6B35, #F7C59F); border:none; border-radius:6px; color:white; font-size:12px; cursor:pointer; transition:all 0.2s;">
+                            🌅 电影日落
+                        </button>
+                        <button class="filter-preset-btn" data-preset="bw" style="padding:10px 5px; background:linear-gradient(135deg, #1a1a1a, #4a4a4a); border:none; border-radius:6px; color:white; font-size:12px; cursor:pointer; transition:all 0.2s;">
+                            ⚫ 黑白对比
                         </button>
                     </div>
                 </div>
