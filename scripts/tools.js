@@ -2328,12 +2328,126 @@ ${description}
         canvas.renderAll();
 
         // 重置滑块
-        document.getElementById('brightness-slider').value = 0;
-        document.getElementById('contrast-slider').value = 0;
-        document.getElementById('saturation-slider').value = 0;
-        document.getElementById('brightness-value').textContent = '0';
-        document.getElementById('contrast-value').textContent = '0';
-        document.getElementById('saturation-value').textContent = '0';
+        const brightnessSlider = document.getElementById('brightness-slider');
+        const contrastSlider = document.getElementById('contrast-slider');
+        const saturationSlider = document.getElementById('saturation-slider');
+        if (brightnessSlider) brightnessSlider.value = 0;
+        if (contrastSlider) contrastSlider.value = 0;
+        if (saturationSlider) saturationSlider.value = 0;
+        const brightnessValue = document.getElementById('brightness-value');
+        const contrastValue = document.getElementById('contrast-value');
+        const saturationValue = document.getElementById('saturation-value');
+        if (brightnessValue) brightnessValue.textContent = '0';
+        if (contrastValue) contrastValue.textContent = '0';
+        if (saturationValue) saturationValue.textContent = '0';
+    },
+
+    /**
+     * 应用一键滤镜预设
+     * @param {string} preset - 滤镜预设名称 ('film', 'cyberpunk', 'japanese')
+     */
+    applyPresetFilter(preset) {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) {
+            alert('请先打开一张图片');
+            return;
+        }
+
+        // 清除现有滤镜
+        baseImage.filters = [];
+
+        let brightness = 0;
+        let contrast = 0;
+        let saturation = 0;
+        let blendColor = null;
+
+        switch (preset) {
+            case 'film':
+                // 胶片风：降低对比度 + 褪色效果 + 暖色调
+                contrast = -0.15;
+                brightness = 0.05;
+                saturation = -0.2;
+                // 添加棕褐色滤镜模拟胶片感
+                baseImage.filters.push(new fabric.Image.filters.Sepia());
+                // 添加噪点效果（使用噪点滤镜）
+                baseImage.filters.push(new fabric.Image.filters.Noise({
+                    noise: 15
+                }));
+                break;
+
+            case 'cyberpunk':
+                // 赛博朋克风：高饱和度 + 高对比度 + 蓝紫色调
+                contrast = 0.25;
+                brightness = -0.05;
+                saturation = 0.4;
+                // 添加颜色矩阵调整色调
+                baseImage.filters.push(new fabric.Image.filters.BlendColor({
+                    color: '#ff00ff',
+                    mode: 'tint',
+                    alpha: 0.15
+                }));
+                break;
+
+            case 'japanese':
+                // 日系清新风：提高曝光 + 降低对比度 + 降低饱和度 + 冷色调
+                brightness = 0.15;
+                contrast = -0.1;
+                saturation = -0.25;
+                // 添加淡蓝色调
+                baseImage.filters.push(new fabric.Image.filters.BlendColor({
+                    color: '#b8d4e3',
+                    mode: 'tint',
+                    alpha: 0.2
+                }));
+                break;
+        }
+
+        // 添加基础滤镜
+        if (brightness !== 0) {
+            baseImage.filters.unshift(new fabric.Image.filters.Brightness({
+                brightness: brightness
+            }));
+        }
+        if (contrast !== 0) {
+            baseImage.filters.unshift(new fabric.Image.filters.Contrast({
+                contrast: contrast
+            }));
+        }
+        if (saturation !== 0) {
+            baseImage.filters.unshift(new fabric.Image.filters.Saturation({
+                saturation: saturation
+            }));
+        }
+
+        // 应用滤镜
+        baseImage.applyFilters();
+        canvas.renderAll();
+
+        // 更新滑块显示
+        const brightnessSlider = document.getElementById('brightness-slider');
+        const contrastSlider = document.getElementById('contrast-slider');
+        const saturationSlider = document.getElementById('saturation-slider');
+        if (brightnessSlider) brightnessSlider.value = Math.round(brightness * 100);
+        if (contrastSlider) contrastSlider.value = Math.round(contrast * 100);
+        if (saturationSlider) saturationSlider.value = Math.round(saturation * 100);
+
+        const brightnessValue = document.getElementById('brightness-value');
+        const contrastValue = document.getElementById('contrast-value');
+        const saturationValue = document.getElementById('saturation-value');
+        if (brightnessValue) brightnessValue.textContent = Math.round(brightness * 100);
+        if (contrastValue) contrastValue.textContent = Math.round(contrast * 100);
+        if (saturationValue) saturationValue.textContent = Math.round(saturation * 100);
+
+        // 保存到历史记录
+        historyManager.push(canvas);
+
+        // 显示提示
+        const presetNames = {
+            'film': '🎞️ 胶片风',
+            'cyberpunk': '🌃 赛博朋克',
+            'japanese': '🌸 日系清新'
+        };
+        console.log(`[滤镜] 已应用 ${presetNames[preset]} 效果`);
     },
 
     // ========== 图框/阴影功能 ==========
@@ -3751,6 +3865,23 @@ ${description}
         } else if (tool === 'filter') {
             panel.innerHTML = `
                 <div class="prop-item">
+                    <label style="color:#f59e0b; font-weight:bold;">🎨 一键滤镜</label>
+                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:8px;">
+                        <button class="filter-preset-btn" data-preset="film" style="padding:10px 5px; background:linear-gradient(135deg, #8B4513, #D2691E); border:none; border-radius:6px; color:white; font-size:12px; cursor:pointer; transition:all 0.2s;">
+                            🎞️ 胶片风
+                        </button>
+                        <button class="filter-preset-btn" data-preset="cyberpunk" style="padding:10px 5px; background:linear-gradient(135deg, #ff00ff, #00ffff); border:none; border-radius:6px; color:white; font-size:12px; cursor:pointer; transition:all 0.2s;">
+                            🌃 赛博朋克
+                        </button>
+                        <button class="filter-preset-btn" data-preset="japanese" style="padding:10px 5px; background:linear-gradient(135deg, #87CEEB, #E0F6FF); border:none; border-radius:6px; color:#333; font-size:12px; cursor:pointer; transition:all 0.2s;">
+                            🌸 日系清新
+                        </button>
+                    </div>
+                </div>
+                <div class="prop-item" style="margin-top:15px; padding-top:15px; border-top:1px solid #333;">
+                    <label style="color:#888; font-size:12px;">手动调节</label>
+                </div>
+                <div class="prop-item">
                     <label>亮度</label>
                     <input type="range" min="-100" max="100" value="0" id="brightness-slider">
                     <span id="brightness-value" style="color:#3b82f6;">0</span>
@@ -3767,6 +3898,23 @@ ${description}
                 </div>
                 <button id="reset-filters" class="secondary-btn" style="width:100%; margin-top:10px;">重置滤镜</button>
 `;
+
+            // 一键滤镜按钮事件
+            const presetButtons = panel.querySelectorAll('.filter-preset-btn');
+            presetButtons.forEach(btn => {
+                btn.addEventListener('mouseenter', () => {
+                    btn.style.transform = 'scale(1.05)';
+                    btn.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+                });
+                btn.addEventListener('mouseleave', () => {
+                    btn.style.transform = 'scale(1)';
+                    btn.style.boxShadow = 'none';
+                });
+                btn.addEventListener('click', () => {
+                    const preset = btn.dataset.preset;
+                    this.applyPresetFilter(preset);
+                });
+            });
 
             const updateFilters = () => {
                 const brightness = parseInt(document.getElementById('brightness-slider').value) / 100;
