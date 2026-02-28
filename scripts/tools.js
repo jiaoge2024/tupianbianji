@@ -80,6 +80,9 @@ const toolManager = {
             case 'resize':
                 this.updatePropertyPanel('resize');
                 break;
+            case 'compress':
+                this.updatePropertyPanel('compress');
+                break;
             case 'rotate':
                 this.updatePropertyPanel('rotate');
                 break;
@@ -3601,6 +3604,87 @@ ${description}
                     this.applyAiBackground('color', customColor || selectedColor, 100);
                 }
             });
+        } else if (tool === 'compress') {
+            const img = canvas.getObjects()[0];
+            if (!img) return;
+
+            // 获取当前图片信息
+            const canvasEl = canvas.toCanvasElement();
+            const originalSize = Math.round(canvasEl.toDataURL('image/png').length * 0.75 / 1024);
+
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label style="color:#10b981; font-weight:bold;">🗜️ 图片压缩</label>
+                    <p style="font-size:11px; color:#888; margin:8px 0;">使用有损压缩减小文件体积</p>
+                </div>
+                <div class="prop-item">
+                    <label>输出格式</label>
+                    <select id="compress-format" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                        <option value="image/jpeg">JPEG (推荐)</option>
+                        <option value="image/webp">WebP (更高压缩率)</option>
+                    </select>
+                </div>
+                <div class="prop-item">
+                    <label>压缩质量</label>
+                    <input type="range" min="0.1" max="1" step="0.05" value="0.8" id="compress-quality">
+                    <div style="display:flex; justify-content:space-between; margin-top:4px;">
+                        <span style="font-size:11px; color:#666;">低质量</span>
+                        <span id="compress-quality-value" style="color:#3b82f6; font-weight:bold;">80%</span>
+                        <span style="font-size:11px; color:#666;">高质量</span>
+                    </div>
+                </div>
+                <div class="prop-item" style="background:#1a1a1a; padding:10px; border-radius:6px; margin-top:10px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                        <span style="font-size:12px; color:#888;">预估大小:</span>
+                        <span id="compress-estimated-size" style="font-size:12px; color:#10b981;">计算中...</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="font-size:12px; color:#888;">压缩率:</span>
+                        <span id="compress-ratio" style="font-size:12px; color:#3b82f6;">-</span>
+                    </div>
+                </div>
+                <button id="apply-compress" class="primary-btn" style="width:100%; margin-top:12px; background:linear-gradient(135deg, #10b981, #059669);">✨ 应用压缩</button>
+                <p style="font-size:10px; color:#666; margin-top:10px; line-height:1.5;">
+                    💡 提示：JPEG 格式兼容性最好，WebP 格式压缩率更高但部分旧版浏览器可能不支持。
+                </p>
+`;
+
+            // 质量滑块事件
+            const qualitySlider = document.getElementById('compress-quality');
+            const qualityValue = document.getElementById('compress-quality-value');
+            const formatSelect = document.getElementById('compress-format');
+
+            const updateEstimatedSize = () => {
+                const quality = parseFloat(qualitySlider.value);
+                const format = formatSelect.value;
+                qualityValue.textContent = Math.round(quality * 100) + '%';
+
+                try {
+                    const canvasEl = canvas.toCanvasElement();
+                    const dataUrl = canvasEl.toDataURL(format, quality);
+                    const estimatedSize = Math.round(dataUrl.length * 0.75 / 1024);
+                    const ratio = Math.round((1 - estimatedSize / originalSize) * 100);
+
+                    document.getElementById('compress-estimated-size').textContent = estimatedSize + ' KB';
+                    document.getElementById('compress-ratio').textContent = ratio > 0 ? '-' + ratio + '%' : '无压缩';
+                } catch (e) {
+                    document.getElementById('compress-estimated-size').textContent = '无法预估';
+                    document.getElementById('compress-ratio').textContent = '-';
+                }
+            };
+
+            qualitySlider.addEventListener('input', updateEstimatedSize);
+            formatSelect.addEventListener('change', updateEstimatedSize);
+
+            // 初始计算
+            setTimeout(updateEstimatedSize, 100);
+
+            // 应用压缩
+            document.getElementById('apply-compress').addEventListener('click', () => {
+                const quality = parseFloat(qualitySlider.value);
+                const format = formatSelect.value;
+                this.applyCompression(format, quality);
+            });
         } else if (tool === 'resize') {
             const img = canvas.getObjects()[0];
             if (!img) return;
@@ -5302,6 +5386,68 @@ ${description}
         } catch (error) {
             console.error('打开拼图模态框失败:', error);
             alert('拼图功能出错，请刷新页面重试');
+        }
+    },
+
+    /**
+     * 应用图片有损压缩
+     * @param {string} format - 输出格式 ('image/jpeg' 或 'image/webp')
+     * @param {number} quality - 压缩质量 (0.1 - 1.0)
+     */
+    applyCompression(format, quality) {
+        try {
+            console.log(`[压缩] 开始压缩，格式: ${format}, 质量: ${quality}`);
+
+            // 获取当前画布内容
+            const canvasEl = canvas.toCanvasElement();
+            const originalDataUrl = canvasEl.toDataURL('image/png');
+            const originalSize = Math.round(originalDataUrl.length * 0.75 / 1024);
+
+            // 执行压缩
+            const compressedDataUrl = canvasEl.toDataURL(format, quality);
+            const compressedSize = Math.round(compressedDataUrl.length * 0.75 / 1024);
+            const ratio = Math.round((1 - compressedSize / originalSize) * 100);
+
+            console.log(`[压缩] 原始大小: ${originalSize}KB, 压缩后: ${compressedSize}KB, 压缩率: ${ratio}%`);
+
+            // 加载压缩后的图片
+            fabric.Image.fromURL(compressedDataUrl, (compressedImg) => {
+                // 清除画布并添加压缩后的图片
+                canvas.clear();
+
+                // 设置画布尺寸
+                canvas.setDimensions({
+                    width: compressedImg.width,
+                    height: compressedImg.height
+                });
+
+                // 添加图片到画布
+                compressedImg.set({
+                    left: 0,
+                    top: 0,
+                    selectable: true,
+                    evented: true
+                });
+
+                canvas.add(compressedImg);
+                canvas.renderAll();
+
+                // 保存到历史记录
+                historyManager.push(canvas);
+
+                // 显示成功提示
+                const formatName = format === 'image/webp' ? 'WebP' : 'JPEG';
+                alert(`✅ 压缩成功！\n格式: ${formatName}\n质量: ${Math.round(quality * 100)}%\n原始大小: ${originalSize} KB\n压缩后: ${compressedSize} KB\n压缩率: ${ratio}%`);
+
+                // 切换回选择工具
+                this.activate('select');
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+
+            }, { crossOrigin: 'anonymous' });
+
+        } catch (error) {
+            console.error('[压缩] 压缩失败:', error);
+            alert('压缩失败: ' + error.message);
         }
     }
 };
