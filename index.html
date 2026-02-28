@@ -90,6 +90,7 @@
                         </div>
                         <div class="tool-group">
                             <h3>批量操作</h3>
+                            <button class="tool-btn" data-tool="batch-processor">⚡ 批量处理</button>
                             <button class="tool-btn" data-tool="batch">批量重命名</button>
                             <button class="tool-btn" data-tool="collage">拼图</button>
                         </div>
@@ -419,6 +420,254 @@
         </div>
     </div>
 
+    <!-- 批量处理中心 Modal -->
+    <div id="batch-processor-modal" class="batch-modal" style="display: none;">
+        <style>
+            #batch-processor-modal .batch-tool-btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }
+            #batch-processor-modal .batch-tool-btn.active:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(26, 115, 232, 0.4);
+            }
+        </style>
+        <div class="batch-modal-content" style="max-width: 900px; max-height: 85vh;">
+            <div class="batch-header">
+                <h3>⚡ 批量处理中心</h3>
+                <span class="batch-close" id="batch-processor-close">&times;</span>
+            </div>
+
+            <div class="batch-body" style="flex-direction: column;">
+                <!-- 上方：工具选择 -->
+                <div class="batch-rename-section" style="width: 100%; margin-bottom: 15px;">
+                    <h4>🛠️ 选择工具</h4>
+                    <div class="batch-rename-row" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="batch-tool-btn active" data-tool="compress" style="flex: 1; min-width: 80px; padding: 10px 8px; background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;">
+                            <span style="font-size: 16px;">🗜️</span>
+                            <span>压缩</span>
+                        </button>
+                        <button class="batch-tool-btn" data-tool="resize" style="flex: 1; min-width: 80px; padding: 10px 8px; background: #2d2d2d; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;">
+                            <span style="font-size: 16px;">📐</span>
+                            <span>尺寸</span>
+                        </button>
+                        <button class="batch-tool-btn" data-tool="crop" style="flex: 1; min-width: 80px; padding: 10px 8px; background: #2d2d2d; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;">
+                            <span style="font-size: 16px;">✂️</span>
+                            <span>裁剪</span>
+                        </button>
+                        <button class="batch-tool-btn" data-tool="rotate" style="flex: 1; min-width: 80px; padding: 10px 8px; background: #2d2d2d; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;">
+                            <span style="font-size: 16px;">🔄</span>
+                            <span>旋转</span>
+                        </button>
+                        <button class="batch-tool-btn" data-tool="format" style="flex: 1; min-width: 80px; padding: 10px 8px; background: #2d2d2d; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;">
+                            <span style="font-size: 16px;">🖼️</span>
+                            <span>格式</span>
+                        </button>
+                        <button class="batch-tool-btn" data-tool="frame" style="flex: 1; min-width: 80px; padding: 10px 8px; background: #2d2d2d; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;">
+                            <span style="font-size: 16px;">🎨</span>
+                            <span>图框</span>
+                        </button>
+                        <button class="batch-tool-btn" data-tool="text" style="flex: 1; min-width: 80px; padding: 10px 8px; background: #2d2d2d; color: white; border: none; border-radius: 6px; cursor: pointer; text-align: center; font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 3px; transition: all 0.2s;">
+                            <span style="font-size: 16px;">📝</span>
+                            <span>文字</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 下方：左右分栏（图片列表 + 参数设置） -->
+                <div style="display: flex; gap: 20px; flex: 1;">
+                    <!-- 左侧：图片列表 -->
+                    <div class="batch-list-section" id="batch-processor-list-section" style="flex: 1; min-width: 300px;">
+                    <!-- 上传区域 -->
+                    <div class="batch-upload-area" id="batch-processor-upload-area" style="margin-bottom: 15px;">
+                        <span class="batch-upload-icon">📁</span>
+                        <p>点击或拖拽上传图片</p>
+                        <p class="batch-sub-text">支持多选，可同时上传多张图片</p>
+                        <input type="file" id="batch-processor-file-input" accept="image/*" multiple hidden>
+                    </div>
+
+                    <!-- 图片列表 -->
+                    <div id="batch-processor-list-container" style="display: none;">
+                        <div class="batch-list-header">
+                            <span>已选择 <strong id="batch-processor-count">0</strong> 张图片</span>
+                            <button class="batch-clear-btn" id="batch-processor-clear">清空</button>
+                        </div>
+                        <div class="batch-list-container" id="batch-processor-image-list" style="max-height: 300px; overflow-y: auto;">
+                            <!-- 图片列表项将动态插入 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：工具参数 -->
+                <div class="batch-rename-section" style="width: 250px; flex-shrink: 0;">
+                    <h4>⚙️ 参数设置</h4>
+                    <div id="batch-processor-params">
+                        <!-- 压缩参数 -->
+                        <div class="batch-processor-tool-params" data-tool="compress">
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">输出格式</label>
+                                <select id="bp-compress-format" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="image/jpeg">JPEG</option>
+                                    <option value="image/webp">WebP</option>
+                                </select>
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">压缩质量: <span id="bp-compress-quality-value" style="color: #1a73e8;">80%</span></label>
+                                <input type="range" id="bp-compress-quality" min="10" max="100" value="80" style="width: 100%;">
+                            </div>
+                        </div>
+
+                        <!-- 尺寸参数 -->
+                        <div class="batch-processor-tool-params" data-tool="resize" style="display: none;">
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">调整方式</label>
+                                <select id="bp-resize-mode" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="width">指定宽度</option>
+                                    <option value="height">指定高度</option>
+                                    <option value="percent">百分比缩放</option>
+                                </select>
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">数值</label>
+                                <input type="number" id="bp-resize-value" value="800" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                            </div>
+                        </div>
+
+                        <!-- 旋转参数 -->
+                        <div class="batch-processor-tool-params" data-tool="rotate" style="display: none;">
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">旋转角度</label>
+                                <select id="bp-rotate-angle" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="90">顺时针 90°</option>
+                                    <option value="-90">逆时针 90°</option>
+                                    <option value="180">180°</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 格式转换参数 -->
+                        <div class="batch-processor-tool-params" data-tool="format" style="display: none;">
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">目标格式</label>
+                                <select id="bp-target-format" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="image/jpeg">JPEG</option>
+                                    <option value="image/png">PNG</option>
+                                    <option value="image/webp">WebP</option>
+                                </select>
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">质量 (JPEG/WebP): <span id="bp-format-quality-value" style="color: #1a73e8;">90%</span></label>
+                                <input type="range" id="bp-format-quality" min="10" max="100" value="90" style="width: 100%;">
+                            </div>
+                        </div>
+
+                        <!-- 裁剪参数 -->
+                        <div class="batch-processor-tool-params" data-tool="crop" style="display: none;">
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">裁剪比例</label>
+                                <select id="bp-crop-ratio" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="1:1">1:1 正方形</option>
+                                    <option value="4:3">4:3 标准</option>
+                                    <option value="3:4">3:4 竖版</option>
+                                    <option value="16:9">16:9 宽屏</option>
+                                    <option value="9:16">9:16 手机</option>
+                                </select>
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">输出格式</label>
+                                <select id="bp-crop-format" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="image/jpeg">JPEG</option>
+                                    <option value="image/png">PNG</option>
+                                    <option value="image/webp">WebP</option>
+                                </select>
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">质量: <span id="bp-crop-quality-value" style="color: #1a73e8;">95%</span></label>
+                                <input type="range" id="bp-crop-quality" min="10" max="100" value="95" style="width: 100%;">
+                            </div>
+                        </div>
+
+                        <!-- 图框阴影参数 -->
+                        <div class="batch-processor-tool-params" data-tool="frame" style="display: none;">
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">图框类型</label>
+                                <select id="bp-frame-type" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="white">简约白边</option>
+                                    <option value="black">简约黑边</option>
+                                    <option value="polaroid">拍立得</option>
+                                    <option value="film">胶片边框</option>
+                                    <option value="gradient">渐变边框</option>
+                                    <option value="vintage">复古相框</option>
+                                </select>
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">边框宽度: <span id="bp-frame-width-value" style="color: #1a73e8;">30px</span></label>
+                                <input type="range" id="bp-frame-width" min="10" max="100" value="30" style="width: 100%;">
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">输出格式</label>
+                                <select id="bp-frame-format" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="image/jpeg">JPEG</option>
+                                    <option value="image/png">PNG</option>
+                                    <option value="image/webp">WebP</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 添加文本参数 -->
+                        <div class="batch-processor-tool-params" data-tool="text" style="display: none;">
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">文本内容</label>
+                                <input type="text" id="bp-text-content" placeholder="输入要添加的文字" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px; font-size: 13px;">
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">位置</label>
+                                <select id="bp-text-position" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="bottom-right">右下角</option>
+                                    <option value="bottom-left">左下角</option>
+                                    <option value="top-right">右上角</option>
+                                    <option value="top-left">左上角</option>
+                                    <option value="center">居中</option>
+                                </select>
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">字体大小: <span id="bp-text-size-value" style="color: #1a73e8;">24px</span></label>
+                                <input type="range" id="bp-text-size" min="12" max="72" value="24" style="width: 100%;">
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">文字颜色</label>
+                                <input type="color" id="bp-text-color" value="#ffffff" style="width: 100%; height: 35px; border: 1px solid #333; border-radius: 4px; background: #2d2d2d; cursor: pointer;">
+                            </div>
+                            <div class="batch-rename-row" style="flex-direction: column; align-items: flex-start; margin-top: 12px;">
+                                <label style="font-size: 12px; color: #888; margin-bottom: 5px;">输出格式</label>
+                                <select id="bp-text-format" style="width: 100%; padding: 6px; background: #2d2d2d; color: white; border: 1px solid #333; border-radius: 4px;">
+                                    <option value="image/jpeg">JPEG</option>
+                                    <option value="image/png">PNG</option>
+                                    <option value="image/webp">WebP</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 进度显示 -->
+                    <div id="batch-processor-progress" style="display: none; margin-top: 20px;">
+                        <div style="background: #333; border-radius: 4px; height: 8px; overflow: hidden;">
+                            <div id="batch-processor-progress-bar" style="background: linear-gradient(90deg, #1a73e8, #4a9eff); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                        </div>
+                        <p id="batch-processor-progress-text" style="font-size: 12px; color: #888; margin-top: 8px; text-align: center;">准备中...</p>
+                    </div>
+                </div>
+            </div>
+            </div>
+
+            <!-- 底部操作按钮 -->
+            <div class="batch-footer">
+                <button class="batch-secondary-btn" id="batch-processor-export" disabled>📦 导出 ZIP</button>
+                <button class="batch-primary-btn" id="batch-processor-start" disabled>⚡ 开始处理</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 核心逻辑 -->
     <script src="scripts/history.js"></script>
     <!-- ONNX Runtime Web for AI inpainting (WASM-only build) -->
@@ -427,6 +676,7 @@
     <script src="scripts/tools.js"></script>
     <script src="scripts/batch.js"></script>
     <script src="scripts/collage.js"></script>
+    <script src="scripts/batch-processor.js"></script>
     <script src="scripts/main.js"></script>
 </body>
 

@@ -22,8 +22,9 @@ const toolManager = {
     },
 
     activate(toolName) {
-        // 检查 canvas 是否已初始化（批量操作不需要 canvas）
-        if (!window.canvas && toolName !== 'batch' && toolName !== 'collage') {
+        // 检查 canvas 是否已初始化（以下工具不需要 canvas：批量操作、插件图标、AI生图）
+        const noCanvasTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen'];
+        if (!window.canvas && !noCanvasTools.includes(toolName)) {
             if (toolName !== 'select') {
                 alert('请先打开或上传一张图片');
             }
@@ -32,10 +33,11 @@ const toolManager = {
 
         // 如果点击的是当前已激活的工具，且不是'select'，则切换回'select'（实现取消当前工具的功能）
         // 排除支持连续操作的工具：shape（可添加多个形状）、text（可添加多个文字）、sticker（可添加多个贴纸）、image-watermark（可添加多个水印）
-        // 排除独立功能工具：batch（批量重命名）、collage（拼图）
+        // 排除独立功能工具：batch（批量重命名）、collage（拼图）、batch-processor（批量处理中心）、icon-gen（插件图标）、ai-gen（AI生图）
+        const independentTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen'];
         if (this.currentTool === toolName && toolName !== 'select' &&
             toolName !== 'shape' && toolName !== 'text' && toolName !== 'sticker' &&
-            toolName !== 'image-watermark' && toolName !== 'batch' && toolName !== 'collage') {
+            toolName !== 'image-watermark' && !independentTools.includes(toolName)) {
             this.activate('select');
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
             return;
@@ -48,8 +50,9 @@ const toolManager = {
 
         this.currentTool = toolName;
 
-        // 批量操作不需要重置 canvas 状态
-        if (toolName !== 'batch' && toolName !== 'collage') {
+        // 批量操作和独立工具不需要重置 canvas 状态
+        const noResetTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen'];
+        if (!noResetTools.includes(toolName)) {
             this.resetCanvasState();
         }
 
@@ -121,6 +124,9 @@ const toolManager = {
                 break;
             case 'collage':
                 this.initCollage();
+                break;
+            case 'batch-processor':
+                this.initBatchProcessor();
                 break;
         }
     },
@@ -5656,5 +5662,24 @@ ${description}
             console.error('[压缩] 压缩失败:', error);
             alert('压缩失败: ' + error.message);
         }
+    },
+
+    /**
+     * 初始化批量处理中心
+     * 打开批量处理模态框，不依赖 Fabric Canvas
+     */
+    initBatchProcessor() {
+        console.log('[Tools] 初始化批量处理中心');
+
+        // 检查批量处理模块是否已加载
+        if (typeof openBatchProcessor === 'function') {
+            openBatchProcessor();
+        } else {
+            console.error('[Tools] batch-processor.js 模块未加载');
+            alert('批量处理功能加载失败，请刷新页面重试');
+        }
+
+        // 取消当前工具按钮的激活状态
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
     }
 };
