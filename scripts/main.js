@@ -16,6 +16,72 @@ const formatSelect = document.getElementById('export-format');
 const qualityWrapper = document.getElementById('quality-wrapper');
 const qualityInput = document.getElementById('export-quality');
 const qualityValue = document.getElementById('quality-value');
+const zoomLevel = document.getElementById('zoom-level');
+
+const CANVAS_VIEW_MARGIN = 80;
+
+function calculateCanvasView(width, height) {
+    const maxWidth = Math.max(dropZone.offsetWidth - CANVAS_VIEW_MARGIN, 1);
+    const maxHeight = Math.max(dropZone.offsetHeight - CANVAS_VIEW_MARGIN, 1);
+    const scale = Math.min(1, maxWidth / width, maxHeight / height);
+
+    return {
+        scale,
+        displayWidth: Math.max(1, Math.round(width * scale)),
+        displayHeight: Math.max(1, Math.round(height * scale))
+    };
+}
+
+function updateZoomIndicator(scale = 1) {
+    if (zoomLevel) {
+        zoomLevel.textContent = `${Math.round(scale * 100)}%`;
+    }
+}
+
+function syncCanvasDisplay(canvasInstance = window.canvas) {
+    if (!canvasInstance || !canvasInstance._originalSetDimensions) return;
+
+    const width = canvasInstance.width || 0;
+    const height = canvasInstance.height || 0;
+
+    if (width <= 0 || height <= 0) {
+        canvasInstance._originalSetDimensions({ width: 0, height: 0 }, { cssOnly: true });
+        canvasInstance.calcOffset();
+        canvasWrapper.style.width = '0px';
+        canvasWrapper.style.height = '0px';
+        updateZoomIndicator(1);
+        return;
+    }
+
+    const { scale, displayWidth, displayHeight } = calculateCanvasView(width, height);
+    canvasInstance._originalSetDimensions({ width: displayWidth, height: displayHeight }, { cssOnly: true });
+    canvasInstance.calcOffset();
+
+    canvasWrapper.style.width = `${displayWidth}px`;
+    canvasWrapper.style.height = `${displayHeight}px`;
+    updateZoomIndicator(scale);
+}
+
+function installCanvasDisplaySync(canvasInstance) {
+    if (!canvasInstance || canvasInstance._displaySyncInstalled) return;
+
+    const originalSetDimensions = canvasInstance.setDimensions.bind(canvasInstance);
+    canvasInstance._originalSetDimensions = originalSetDimensions;
+
+    canvasInstance.setDimensions = (dimensions, options) => {
+        const result = originalSetDimensions(dimensions, options);
+        if (!options || !options.cssOnly) {
+            syncCanvasDisplay(canvasInstance);
+        }
+        return result;
+    };
+
+    canvasInstance._displaySyncInstalled = true;
+    syncCanvasDisplay(canvasInstance);
+}
+
+window.syncCanvasDisplay = syncCanvasDisplay;
+window.installCanvasDisplaySync = installCanvasDisplaySync;
 
 // Initialize Fabric Canvas
 function initCanvas() {
@@ -25,6 +91,7 @@ function initCanvas() {
         stopContextMenu: true
     });
     canvas = window.canvas; // 保持局部引用兼容
+    installCanvasDisplaySync(window.canvas);
 
     // Resize canvas to fit container initially
     resizeCanvasToFit();
@@ -58,12 +125,7 @@ function initCanvas() {
 }
 
 function resizeCanvasToFit() {
-    const margin = 80;
-    const parentWidth = dropZone.offsetWidth - margin;
-    const parentHeight = dropZone.offsetHeight - margin;
-
-    // This doesn't resize the image, just the viewable area
-    // Actual image handling happens in loadContent
+    syncCanvasDisplay();
 }
 
 // Image Loading Logic
@@ -89,21 +151,16 @@ function loadContent(url) {
             toolManager.idPhotoState = null;
         }
 
-        // Scale to fit screen
-        const maxWidth = dropZone.offsetWidth - 100;
-        const maxHeight = dropZone.offsetHeight - 100;
-
-        let scale = 1;
-        if (img.width > maxWidth || img.height > maxHeight) {
-            scale = Math.min(maxWidth / img.width, maxHeight / img.height);
-        }
-
-        canvas.setDimensions({ width: img.width * scale, height: img.height * scale });
-        img.scale(scale);
-
+        canvas.setDimensions({ width: img.width, height: img.height });
+        img.set({
+            left: 0,
+            top: 0,
+            scaleX: 1,
+            scaleY: 1
+        });
         canvas.add(img);
-        canvas.centerObject(img);
         canvas.setActiveObject(img);
+        canvas.renderAll();
 
         // UI transitions
         welcomeScreen.style.display = 'none';
@@ -212,10 +269,7 @@ if (qualityInput) {
 document.getElementById('btn-download').addEventListener('click', () => {
     const format = formatSelect ? formatSelect.value : 'png';
     const quality = qualityInput ? parseFloat(qualityInput.value) : 0.9;
-
-    // fabric.js handles 'jpeg' as 'jpeg' but for input selector we might want to be consistent
     const fabricFormat = format === 'jpeg' ? 'jpeg' : format;
-
     const dataURL = canvas.toDataURL({
         format: fabricFormat,
         quality: quality
@@ -270,6 +324,10 @@ if (qrModal) {
     });
 }
 
+window.addEventListener('resize', () => {
+    syncCanvasDisplay();
+});
+
 // ==================== Sidebar Resizer Logic ====================
 const sidebar = document.getElementById('sidebar');
 const resizer = document.getElementById('resizer');
@@ -301,6 +359,7 @@ document.addEventListener('mousemove', (e) => {
     if (newWidth >= minWidth && newWidth <= maxWidth) {
         sidebar.style.width = newWidth + 'px';
         lastDownX = e.clientX;
+        syncCanvasDisplay();
     }
 });
 
@@ -314,4 +373,3 @@ document.addEventListener('mouseup', () => {
         document.body.style.cursor = '';
     }
 });
-

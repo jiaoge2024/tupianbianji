@@ -68,6 +68,9 @@ const toolManager = {
             case 'grid-slice':
                 this.initGridSlice();
                 break;
+            case 'long-slice':
+                this.initLongSlice();
+                break;
             case 'id-photo':
                 this.initIDPhoto();
                 break;
@@ -437,34 +440,52 @@ const toolManager = {
         });
     },
 
+    _getBaseImageBounds() {
+        const baseImage = canvas.getObjects().find(obj => obj.type === 'image');
+        if (!baseImage) return null;
+
+        return {
+            left: baseImage.left,
+            top: baseImage.top,
+            width: baseImage.width * baseImage.scaleX,
+            height: baseImage.height * baseImage.scaleY
+        };
+    },
+
+    _parseCropRatio(ratio) {
+        if (!ratio || ratio === 'free') return null;
+
+        const parts = String(ratio).split(':').map(part => parseFloat(part));
+        if (parts.length !== 2 || parts.some(part => !Number.isFinite(part) || part <= 0)) {
+            return null;
+        }
+
+        return parts[0] / parts[1];
+    },
+
     setCropRatio(ratio) {
         if (!this.cropRect) return;
 
-        const currentWidth = this.cropRect.width * this.cropRect.scaleX;
-        let newHeight;
+        const ratioValue = this._parseCropRatio(ratio);
+        if (!ratioValue) return;
 
-        switch (ratio) {
-            case '1:1':
-                newHeight = currentWidth;
-                break;
-            case '3:4':
-                newHeight = currentWidth * 4 / 3;
-                break;
-            case '4:3':
-                newHeight = currentWidth * 3 / 4;
-                break;
-            case '9:16':
-                newHeight = currentWidth * 16 / 9;
-                break;
-            case '16:9':
-                newHeight = currentWidth * 9 / 16;
-                break;
-            case 'free':
-                return;
+        const bounds = this._getBaseImageBounds();
+        if (!bounds) return;
+
+        let cropWidth = bounds.width;
+        let cropHeight = cropWidth / ratioValue;
+
+        if (cropHeight > bounds.height) {
+            cropHeight = bounds.height;
+            cropWidth = cropHeight * ratioValue;
         }
 
         this.cropRect.set({
-            height: newHeight / this.cropRect.scaleY,
+            left: bounds.left + (bounds.width - cropWidth) / 2,
+            top: bounds.top + (bounds.height - cropHeight) / 2,
+            width: cropWidth,
+            height: cropHeight,
+            scaleX: 1,
             scaleY: 1
         });
 
@@ -483,6 +504,19 @@ const toolManager = {
         }
 
         this.updatePropertyPanel('grid-slice');
+    },
+
+    initLongSlice() {
+        const objects = canvas.getObjects();
+        const baseImage = objects.find(obj => obj.type === 'image');
+
+        if (!baseImage) {
+            alert('请先导入图片');
+            this.activate('select');
+            return;
+        }
+
+        this.updatePropertyPanel('long-slice');
     },
 
     async applyGridSlice(rows, cols) {
@@ -542,6 +576,83 @@ const toolManager = {
         } catch (error) {
             console.error('切图失败:', error);
             alert('切图过程中出错，请稍后重试。');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    },
+
+    async applyLongSlice(sliceHeight, overlap = 0) {
+        if (!sliceHeight || sliceHeight <= 0) {
+            alert('请输入有效的切片高度');
+            return;
+        }
+
+        if (overlap < 0) {
+            alert('重叠高度不能小于 0');
+            return;
+        }
+
+        if (overlap >= sliceHeight) {
+            alert('重叠高度必须小于切片高度');
+            return;
+        }
+
+        const objects = canvas.getObjects();
+        const baseImage = objects.find(obj => obj.type === 'image');
+        if (!baseImage) return;
+
+        const totalWidth = canvas.width;
+        const totalHeight = canvas.height;
+        const stepHeight = sliceHeight - overlap;
+
+        const slicePositions = [];
+        for (let top = 0; top < totalHeight; top += stepHeight) {
+            slicePositions.push(top);
+        }
+
+        if (slicePositions.length === 0) {
+            alert('当前图片高度不足，无法切片');
+            return;
+        }
+
+        const zip = new JSZip();
+        const imgFolder = zip.folder('long_slices');
+
+        const btn = document.getElementById('apply-long-slice');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '处理中...';
+
+        try {
+            const digits = String(slicePositions.length).length;
+
+            slicePositions.forEach((top, index) => {
+                const currentHeight = Math.min(sliceHeight, totalHeight - top);
+                const dataURL = canvas.toDataURL({
+                    left: 0,
+                    top: top,
+                    width: totalWidth,
+                    height: currentHeight,
+                    format: 'png',
+                    quality: 1
+                });
+
+                const base64Data = dataURL.replace(/^data:image\/(png|jpg);base64,/, '');
+                const fileIndex = String(index + 1).padStart(digits, '0');
+                imgFolder.file(`long_slice_${fileIndex}.png`, base64Data, { base64: true });
+            });
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `long_slices_${totalWidth}x${totalHeight}.zip`;
+            link.click();
+
+            alert(`长图切片完成，共导出 ${slicePositions.length} 张图片。`);
+        } catch (error) {
+            console.error('长图切片失败:', error);
+            alert('长图切片过程中出错，请稍后重试。');
         } finally {
             btn.disabled = false;
             btn.textContent = originalText;
@@ -3234,14 +3345,17 @@ ${description}
                 <div class="prop-item">
                     <label>裁剪比例</label>
                     <select id="crop-ratio" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
-                        <option value="free">自由比例</option>
-                        <option value="1:1">1:1 (正方形)</option>
-                        <option value="3:4">3:4</option>
+                        <option value="free" selected>自由比例</option>
+                        <option value="1:1">1:1 (头像/正方形)</option>
+                        <option value="3:4">3:4 (小红书封面)</option>
                         <option value="4:3">4:3</option>
                         <option value="9:16">9:16</option>
                         <option value="16:9">16:9</option>
+                        <option value="1280:1184">朋友圈封面 1280×1184</option>
+                        <option value="900:383">公众号封面 900×383 (≈2.35:1)</option>
                     </select>
                 </div>
+                <p style="font-size: 12px; color: #888; margin-top: 8px;">平台尺寸已合并到同一列表，选择后会自动按对应比例重置裁剪框。</p>
                 <button id="apply-crop" class="primary-btn" style="width:100%; margin-top:10px;">应用裁剪</button>
 `;
 
@@ -3280,9 +3394,9 @@ ${description}
                 this.showOCRConfigModal();
             });
         } else if (tool === 'ai-gen') {
-            const hasConfig = localStorage.getItem('aigenApiToken');
+            const hasConfig = localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken');
             const statusClass = hasConfig ? 'success' : '';
-            const statusText = hasConfig ? '✓ API 已配置' : '⚠ 请先配置 API Token';
+            const statusText = hasConfig ? '✓ API 已配置' : '⚠ 请先配置 API Key';
 
             panel.innerHTML = `
                 <div class="aigen-panel-info ${statusClass}">
@@ -3291,6 +3405,9 @@ ${description}
                 <div class="prop-item">
                     <label>提示词 (Prompt)</label>
                     <textarea id="aigen-prompt" class="aigen-prompt-input" placeholder="描述你想生成的图片，例如：一只金色的猫咪在阳光下玩耍"></textarea>
+                </div>
+                <div class="prop-item" style="margin-top:10px;">
+                    <button id="aigen-random-prompt-btn" class="secondary-btn" style="width:100%;">🎲 随机灵感提示词</button>
                 </div>
                 <div class="prop-item">
                     <label>图片尺寸</label>
@@ -3309,9 +3426,17 @@ ${description}
                     <button id="aigen-settings-btn" class="secondary-btn" style="width:100%;">⚙️ API 设置</button>
                 </div>
                 <div class="prop-item" style="margin-top:15px;">
-                    <p style="font-size:11px; color:#888; text-align:center;">使用 ModelScope Qwen-Image 生成图片</p>
+                    <p style="font-size:11px; color:#888; text-align:center;">使用 Gemini 3.1 Flash Image Preview 生成图片</p>
                 </div>
 `;
+
+            document.getElementById('aigen-random-prompt-btn').addEventListener('click', () => {
+                const promptInput = document.getElementById('aigen-prompt');
+                if (promptInput) {
+                    promptInput.value = this.generateRandomAIGenPrompt();
+                    promptInput.focus();
+                }
+            });
 
             document.getElementById('aigen-generate-btn').addEventListener('click', () => {
                 const prompt = document.getElementById('aigen-prompt').value.trim();
@@ -3676,6 +3801,26 @@ ${description}
                 const rows = parseInt(document.getElementById('grid-rows').value);
                 const cols = parseInt(document.getElementById('grid-cols').value);
                 this.applyGridSlice(rows, cols);
+            });
+        } else if (tool === 'long-slice') {
+            const suggestedSliceHeight = Math.min(1600, Math.max(400, Math.round((canvas.height || 1600) / 3)));
+            panel.innerHTML = `
+                <div class="prop-item">
+                    <label>每张切片高度 (px)</label>
+                    <input type="number" id="long-slice-height" value="${suggestedSliceHeight}" min="100" max="10000" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                </div>
+                <div class="prop-item">
+                    <label>重叠高度 (px)</label>
+                    <input type="number" id="long-slice-overlap" value="0" min="0" max="2000" style="width:100%; padding:6px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:4px;">
+                </div>
+                <p style="font-size: 12px; color: #888; margin-top: 10px;">按纵向连续切片，适合长截图拆分后发送或粘贴到文档。</p>
+                <button id="apply-long-slice" class="primary-btn" style="width:100%; margin-top:10px;">开始切片并下载 ZIP</button>
+            `;
+
+            document.getElementById('apply-long-slice').addEventListener('click', () => {
+                const sliceHeight = parseInt(document.getElementById('long-slice-height').value);
+                const overlap = parseInt(document.getElementById('long-slice-overlap').value) || 0;
+                this.applyLongSlice(sliceHeight, overlap);
             });
         } else if (tool === 'id-photo') {
             const templates = this._getIDPhotoTemplates();
@@ -4897,12 +5042,71 @@ ${description}
         }
     },
 
+    generateRandomAIGenPrompt() {
+        const subjects = [
+            '一只戴着宇航员头盔的橘猫',
+            '雨夜霓虹街头的赛博少女',
+            '漂浮在云海上的玻璃城堡',
+            '复古唱片店里的年轻摄影师',
+            '雪山脚下发光的小木屋',
+            '坐在窗边看雨的白发少年',
+            '热带海岛上的透明果冻屋',
+            '沙漠中缓慢行走的巨型机械鲸鱼',
+            '森林深处会发光的鹿',
+            '黄昏海边骑单车的女孩'
+        ];
+        const styles = [
+            '电影感写实风格',
+            '日系清新插画风格',
+            '高级时尚杂志封面风格',
+            '梦幻童话绘本风格',
+            '赛博朋克概念艺术风格',
+            '柔和治愈系动漫风格',
+            '超现实主义艺术风格',
+            '高级 3D 渲染风格'
+        ];
+        const scenes = [
+            '背景带有柔和体积光和细腻景深',
+            '画面中有薄雾、微光和空气感',
+            '周围漂浮少量粒子与光斑',
+            '场景层次丰富，主体突出',
+            '加入自然倒影与环境反射',
+            '整体氛围安静、克制但有故事感',
+            '镜头带一点广角透视和空间纵深',
+            '构图平衡，前景中景背景清晰分层'
+        ];
+        const lighting = [
+            '金色日落光线',
+            '冷色月光照明',
+            '霓虹灯混合光',
+            '清晨柔光',
+            '阴天漫反射光',
+            '舞台聚光灯效果',
+            '逆光轮廓光',
+            '室内暖色灯光'
+        ];
+        const details = [
+            '高细节',
+            '高质量',
+            '色彩干净',
+            '纹理真实',
+            '人物或主体边缘清晰',
+            '画面精致',
+            '适合做海报',
+            '无文字无水印'
+        ];
+
+        const pick = (items) => items[Math.floor(Math.random() * items.length)];
+
+        return `${pick(subjects)}，${pick(styles)}，${pick(scenes)}，${pick(lighting)}，${pick(details)}。`;
+    },
+
     // ========== AI 图像生成功能 ==========
     initAIGen() {
-        // 检查是否已配置 API Token
-        const apiToken = localStorage.getItem('aigenApiToken');
+        // 检查是否已配置 API Key
+        const apiKey = localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken');
 
-        if (!apiToken) {
+        if (!apiKey) {
             // 显示配置模态框
             this.showAIGenConfigModal();
         } else {
@@ -4919,7 +5123,7 @@ ${description}
         if (modal) {
             // 加载已保存的配置
             const tokenInput = document.getElementById('aigen-api-token');
-            const savedToken = localStorage.getItem('aigenApiToken') || '';
+            const savedToken = localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken') || '';
 
             if (tokenInput) tokenInput.value = savedToken;
 
@@ -4958,15 +5162,20 @@ ${description}
 
         if (saveConfig) {
             saveConfig.addEventListener('click', () => {
-                const apiToken = document.getElementById('aigen-api-token').value.trim();
+                const apiKey = document.getElementById('aigen-api-token').value
+                    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                    .replace(/[\u00A0\u3000]/g, ' ')
+                    .replace(/\s+/g, '')
+                    .trim();
 
-                if (!apiToken) {
-                    alert('请填写 API Token');
+                if (!apiKey) {
+                    alert('请填写 API Key');
                     return;
                 }
 
                 // 保存到 localStorage
-                localStorage.setItem('aigenApiToken', apiToken);
+                localStorage.setItem('aigenApiKey', apiKey);
+                localStorage.removeItem('aigenApiToken');
 
                 alert('配置保存成功！');
                 this.hideAIGenConfigModal();
@@ -5021,12 +5230,25 @@ ${description}
     },
 
     async callAIGenAPI(prompt, size = '1024x1024') {
-        const apiToken = localStorage.getItem('aigenApiToken');
-        if (!apiToken) {
-            alert('请先配置 API Token');
+        const apiKey = (localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken') || '')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/[\u00A0\u3000]/g, ' ')
+            .replace(/\s+/g, '')
+            .trim();
+        if (!apiKey) {
+            alert('请先配置 API Key');
             this.showAIGenConfigModal();
             return;
         }
+
+        const sizeMap = {
+            '1024x1024': '1:1',
+            '768x1024': '3:4',
+            '576x1024': '9:16',
+            '1024x768': '4:3',
+            '1024x576': '16:9'
+        };
+        const aspectRatio = sizeMap[size] || '1:1';
 
         const btn = document.getElementById('aigen-generate-btn');
         const originalText = btn ? btn.textContent : '';
@@ -5046,17 +5268,17 @@ ${description}
         if (loadingDiv) loadingDiv.style.display = 'block';
         if (resultImage) resultImage.style.display = 'none';
         if (useImageBtn) useImageBtn.style.display = 'none';
-        if (statusText) statusText.textContent = '正在发起生成任务...';
+        if (statusText) statusText.textContent = '正在调用 Gemini 生成图片...';
 
         try {
-            // 发起生成任务
-            const startResult = await new Promise((resolve, reject) => {
+            const generationResult = await new Promise((resolve, reject) => {
                 chrome.runtime.sendMessage({
                     action: 'startAIGeneration',
-                    apiToken: apiToken,
+                    apiKey: apiKey,
                     prompt: prompt,
-                    size: size,
-                    model: 'Qwen/Qwen-Image-2512'
+                    model: 'gemini-3.1-flash-image-preview',
+                    aspectRatio: aspectRatio,
+                    imageSize: '1K'
                 }, (response) => {
                     if (chrome.runtime.lastError) {
                         reject(new Error(chrome.runtime.lastError.message));
@@ -5064,75 +5286,25 @@ ${description}
                     }
 
                     if (response && response.success) {
-                        resolve(response.taskId);
+                        resolve(response);
                     } else {
-                        reject(new Error(response ? response.error : '发起生成任务失败'));
+                        reject(new Error(response ? response.error : '生成图片失败'));
                     }
                 });
             });
 
-            const taskId = startResult;
-            if (statusText) statusText.textContent = '任务已创建，等待生成...';
-
-            // 轮询获取结果
-            const maxPolls = 60; // 最多轮询60次（5分钟）
-            let pollCount = 0;
-
-            const pollResult = async () => {
-                return new Promise((resolve, reject) => {
-                    chrome.runtime.sendMessage({
-                        action: 'pollAIGeneration',
-                        apiToken: apiToken,
-                        taskId: taskId
-                    }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            reject(new Error(chrome.runtime.lastError.message));
-                            return;
-                        }
-
-                        if (response && response.success) {
-                            resolve(response);
-                        } else {
-                            reject(new Error(response ? response.error : '查询任务状态失败'));
-                        }
-                    });
-                });
-            };
-
-            while (pollCount < maxPolls) {
-                await new Promise(r => setTimeout(r, 5000)); // 每5秒轮询一次
-                pollCount++;
-
-                if (statusText) statusText.textContent = `正在生成中... (${pollCount}/${maxPolls})`;
-
-                const pollResponse = await pollResult();
-
-                if (pollResponse.status === 'SUCCEED') {
-                    // 生成成功
-                    if (pollResponse.images && pollResponse.images.length > 0) {
-                        const imageUrl = pollResponse.images[0];
-                        if (loadingDiv) loadingDiv.style.display = 'none';
-                        if (resultImage) {
-                            resultImage.src = imageUrl;
-                            resultImage.style.display = 'block';
-                        }
-                        if (useImageBtn) useImageBtn.style.display = 'inline-block';
-
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.textContent = originalText;
-                        }
-                        return;
-                    } else {
-                        throw new Error('生成成功但未返回图片');
-                    }
-                } else if (pollResponse.status === 'FAILED') {
-                    throw new Error(pollResponse.message || '图像生成失败');
-                }
-                // 其他状态继续轮询
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (statusText) {
+                const modelTip = generationResult.fallbackFrom
+                    ? `当前已自动回退到 ${generationResult.modelUsed}`
+                    : `使用 ${generationResult.modelUsed} 生成完成`;
+                statusText.textContent = `Gemini 已返回生成结果，${modelTip}`;
             }
-
-            throw new Error('生成超时，请稍后重试');
+            if (resultImage) {
+                resultImage.src = generationResult.imageDataUrl;
+                resultImage.style.display = 'block';
+            }
+            if (useImageBtn) useImageBtn.style.display = 'inline-block';
 
         } catch (error) {
             console.error('AI 图像生成失败:', error);
@@ -5144,7 +5316,8 @@ ${description}
             alert(`AI 图像生成失败: ${error.message}`);
 
             // 如果是 token 相关错误，提示重新配置
-            if (error.message.includes('Token') || error.message.includes('token') || error.message.includes('401') || error.message.includes('认证')) {
+            if (error.message.includes('Key') || error.message.includes('key') || error.message.includes('401') || error.message.includes('403') || error.message.includes('认证')) {
+                localStorage.removeItem('aigenApiKey');
                 localStorage.removeItem('aigenApiToken');
                 this.updatePropertyPanel('ai-gen');
             }
@@ -5158,25 +5331,24 @@ ${description}
 
     async loadAIGenImage(imageUrl) {
         try {
-            // 通过 background script 下载图片，绕过 CORS
-            const response = await new Promise((resolve, reject) => {
-                chrome.runtime.sendMessage({
-                    action: 'fetchImageAsBase64',
-                    imageUrl: imageUrl
-                }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        reject(new Error(chrome.runtime.lastError.message));
-                        return;
-                    }
-                    if (response && response.success) {
-                        resolve(response.dataUrl);
-                    } else {
-                        reject(new Error(response ? response.error : '下载图片失败'));
-                    }
+            const dataUrl = imageUrl.startsWith('data:')
+                ? imageUrl
+                : await new Promise((resolve, reject) => {
+                    chrome.runtime.sendMessage({
+                        action: 'fetchImageAsBase64',
+                        imageUrl: imageUrl
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                            return;
+                        }
+                        if (response && response.success) {
+                            resolve(response.dataUrl);
+                        } else {
+                            reject(new Error(response ? response.error : '下载图片失败'));
+                        }
+                    });
                 });
-            });
-
-            const dataUrl = response;
 
             fabric.Image.fromURL(dataUrl, (img) => {
                 if (!img) {
@@ -5198,6 +5370,11 @@ ${description}
                         preserveObjectStacking: true,
                         stopContextMenu: true
                     });
+                    canvas = window.canvas;
+                }
+
+                if (typeof window.installCanvasDisplaySync === 'function') {
+                    window.installCanvasDisplaySync(window.canvas);
                 }
 
                 if (welcomeScreen) welcomeScreen.style.display = 'none';
@@ -5210,21 +5387,14 @@ ${description}
                 // 清空画布
                 canvas.clear();
 
-                // 调整尺寸以适应画布区域
-                const dropZone = document.getElementById('drop-zone');
-                const maxWidth = dropZone ? dropZone.offsetWidth - 100 : 800;
-                const maxHeight = dropZone ? dropZone.offsetHeight - 100 : 600;
-
-                let scale = 1;
-                if (img.width > maxWidth || img.height > maxHeight) {
-                    scale = Math.min(maxWidth / img.width, maxHeight / img.height);
-                }
-
-                canvas.setDimensions({ width: img.width * scale, height: img.height * scale });
-                img.scale(scale);
-
+                canvas.setDimensions({ width: img.width, height: img.height });
+                img.set({
+                    left: 0,
+                    top: 0,
+                    scaleX: 1,
+                    scaleY: 1
+                });
                 canvas.add(img);
-                canvas.centerObject(img);
                 canvas.setActiveObject(img);
                 canvas.renderAll();
 

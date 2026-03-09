@@ -28,6 +28,7 @@
   "host_permissions": [
     "https://aip.baidubce.com/*",
     "https://api-inference.modelscope.cn/*",
+    "https://generativelanguage.googleapis.com/*",
     "https://*.oss-cn-hangzhou.aliyuncs.com/*",
     "https://*.aliyuncs.com/*",
     "https://huggingface.co/*"

@@ -69,17 +69,18 @@
                             <button class="tool-btn" data-tool="filter">滤镜</button>
                             <button class="tool-btn" data-tool="mosaic">马赛克</button>
                             <button class="tool-btn" data-tool="frame">图框阴影</button>
-                            <button class="tool-btn" data-tool="grid-slice">网格切图</button>
+                            <button class="tool-btn" data-tool="grid-slice" title="把单张图片平均切成宫格">网格切图</button>
+                            <button class="tool-btn" data-tool="long-slice" title="把长图按高度拆成多张连续图片">长图切片</button>
                             <button class="tool-btn" data-tool="id-photo">证件照</button>
                             <button class="tool-btn" data-tool="ai-background">背景替换</button>
-                            <button class="tool-btn" data-tool="remove-watermark">去水印</button>
-                            <button class="tool-btn" data-tool="magic-eraser">消除笔</button>
+                            <button class="tool-btn" data-tool="remove-watermark" title="适合去除边缘、角落一类的水印">裁边去印</button>
+                            <button class="tool-btn" data-tool="magic-eraser" title="适合涂抹消除画面中的局部区域">涂抹消除</button>
                             <button class="tool-btn" data-tool="shape">标注形状</button>
                         </div>
                         <div class="tool-group">
                             <h3>水印/文字</h3>
                             <button class="tool-btn" data-tool="text">添加文本</button>
-                            <button class="tool-btn" data-tool="image-watermark">添加图片</button>
+                            <button class="tool-btn" data-tool="image-watermark" title="插入 Logo 或图片作为水印">图片水印</button>
                             <button class="tool-btn" data-tool="sticker">添加贴纸</button>
                         </div>
                         <div class="tool-group">
@@ -206,29 +207,27 @@
     <div id="aigen-config-modal" class="ocr-modal" style="display: none;">
         <div class="ocr-modal-content">
             <span class="ocr-close" id="aigen-config-close">&times;</span>
-            <h3>🎨 ModelScope AI 生图配置</h3>
+            <h3>🎨 Gemini AI 生图配置</h3>
 
             <div class="ocr-form">
                 <div class="ocr-form-group">
-                    <label for="aigen-api-token">API Token</label>
-                    <input type="password" id="aigen-api-token" placeholder="请输入 ModelScope API Token">
+                    <label for="aigen-api-token">API Key</label>
+                    <input type="password" id="aigen-api-token" placeholder="请输入 Gemini API Key">
                 </div>
                 <button id="aigen-save-config" class="ocr-primary-btn">保存配置</button>
             </div>
 
             <div class="ocr-help-section">
                 <div class="ocr-help-toggle" id="aigen-help-toggle">
-                    <span>📖 如何获取 API Token？</span>
+                    <span>📖 如何获取 API Key？</span>
                     <span class="ocr-toggle-icon">▼</span>
                 </div>
                 <div class="ocr-help-content" id="aigen-help-content" style="display: none;">
                     <ol>
-                        <li>访问 <a href="https://modelscope.cn/" target="_blank">ModelScope 官网</a></li>
-                        <li>注册/登录 ModelScope 账号</li>
-                        <li>点击右上角头像，进入「我的主页」</li>
-                        <li>在左侧菜单点击「访问令牌」</li>
-                        <li>点击「创建新的访问令牌」</li>
-                        <li>复制 Token 填入上方配置框</li>
+                        <li>访问 <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+                        <li>登录 Google 账号并创建 API Key</li>
+                        <li>复制 API Key 填入上方配置框</li>
+                        <li>返回编辑器点击「AI生图」即可开始生成</li>
                     </ol>
                 </div>
             </div>
@@ -236,11 +235,11 @@
             <div class="ocr-security-notice">
                 <h4>⚠️ 安全提示</h4>
                 <ul>
-                    <li>Token 仅存储在浏览器本地，不会上传到任何服务器</li>
-                    <li>请勿将 Token 分享给他人</li>
+                    <li>API Key 仅存储在浏览器本地，不会上传到任何服务器</li>
+                    <li>请勿将 API Key 分享给他人</li>
                     <li>建议仅在个人设备上使用此功能</li>
-                    <li>如怀疑 Token 泄露，请立即在 ModelScope 控制台重置</li>
-                    <li>ModelScope 图像生成服务可能产生费用，请合理使用</li>
+                    <li>如怀疑 API Key 泄露，请立即在 Google AI Studio 中重置</li>
+                    <li>Gemini 图像生成服务可能产生费用，请合理使用</li>
                 </ul>
             </div>
         </div>

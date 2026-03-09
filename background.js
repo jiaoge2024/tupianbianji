@@ -3,6 +3,96 @@
  * 点击插件图标时打开独立窗口
  */
 
+function extractGeminiError(data) {
+    if (!data) return '未知错误';
+    if (typeof data === 'string') return data;
+    if (data.error?.message) return data.error.message;
+    if (Array.isArray(data.error?.details) && data.error.details.length > 0) {
+        const detail = data.error.details.find(item => item?.message) || data.error.details[0];
+        if (detail?.message) return detail.message;
+    }
+    return data.message || '未知错误';
+}
+
+function extractGeminiImageData(data) {
+    const candidates = Array.isArray(data?.candidates) ? data.candidates : [];
+
+    for (const candidate of candidates) {
+        const parts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : [];
+        for (const part of parts) {
+            const inlineData = part?.inlineData || part?.inline_data;
+            if (inlineData?.data) {
+                const mimeType = inlineData.mimeType || inlineData.mime_type || 'image/png';
+                return `data:${mimeType};base64,${inlineData.data}`;
+            }
+        }
+    }
+
+    return null;
+}
+
+function isModelUnavailableError(error) {
+    const message = String(error?.message || '').toLowerCase();
+    return error?.status === 404
+        || message.includes('not found')
+        || message.includes('unsupported')
+        || message.includes('not supported')
+        || message.includes('unknown model')
+        || message.includes('invalid argument');
+}
+
+function normalizeApiKey(apiKey) {
+    return String(apiKey || '')
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/[\u00A0\u3000]/g, ' ')
+        .replace(/\s+/g, '')
+        .trim();
+}
+
+async function requestGeminiImage({ apiKey, prompt, model, aspectRatio, imageSize }) {
+    const normalizedApiKey = normalizeApiKey(apiKey);
+    if (!normalizedApiKey) {
+        throw new Error('API Key 为空或格式无效');
+    }
+
+    const requestUrl = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
+    requestUrl.searchParams.set('key', normalizedApiKey);
+
+    const response = await fetch(requestUrl.toString(), {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            contents: [{
+                parts: [{ text: prompt }]
+            }],
+            generationConfig: {
+                responseModalities: ['TEXT', 'IMAGE'],
+                imageConfig: {
+                    aspectRatio,
+                    imageSize
+                }
+            }
+        })
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        const error = new Error(extractGeminiError(data) || `API 请求失败 (${response.status})`);
+        error.status = response.status;
+        throw error;
+    }
+
+    const imageDataUrl = extractGeminiImageData(data);
+    if (!imageDataUrl) {
+        throw new Error('Gemini 未返回图片数据');
+    }
+
+    return { imageDataUrl, modelUsed: model };
+}
+
 chrome.action.onClicked.addListener(() => {
     chrome.windows.create({
         url: 'index.html',
@@ -77,72 +167,53 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 
     /**
-     * AI 图像生成 API 消息处理 (ModelScope)
+     * AI 图像生成 API 消息处理 (Gemini)
      */
     if (request.action === 'startAIGeneration') {
-        // 发起 AI 图像生成任务
-        const { apiToken, prompt, model, size } = request;
-        const baseUrl = 'https://api-inference.modelscope.cn/v1/images/generations';
+        const {
+            apiKey,
+            prompt,
+            model = 'gemini-3.1-flash-image-preview',
+            aspectRatio = '1:1',
+            imageSize = '1K'
+        } = request;
+        const fallbackModel = 'gemini-2.5-flash-image';
 
-        fetch(baseUrl, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiToken}`,
-                'Content-Type': 'application/json',
-                'X-ModelScope-Async-Mode': 'true'
-            },
-            body: JSON.stringify({
-                model: model || 'Qwen/Qwen-Image-2512',
-                prompt: prompt,
-                size: size || '1024x1024'
-            })
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    sendResponse({ success: false, error: data.error.message || data.error });
-                } else if (data.task_id) {
-                    sendResponse({ success: true, taskId: data.task_id });
-                } else {
-                    sendResponse({ success: false, error: '未知响应格式' });
+        (async () => {
+            try {
+                const result = await requestGeminiImage({
+                    apiKey,
+                    prompt,
+                    model,
+                    aspectRatio,
+                    imageSize
+                });
+                sendResponse({ success: true, ...result });
+            } catch (error) {
+                if (model !== fallbackModel && isModelUnavailableError(error)) {
+                    try {
+                        const fallbackResult = await requestGeminiImage({
+                            apiKey,
+                            prompt,
+                            model: fallbackModel,
+                            aspectRatio,
+                            imageSize
+                        });
+                        sendResponse({
+                            success: true,
+                            ...fallbackResult,
+                            fallbackFrom: model
+                        });
+                        return;
+                    } catch (fallbackError) {
+                        sendResponse({ success: false, error: fallbackError.message });
+                        return;
+                    }
                 }
-            })
-            .catch(error => {
+
                 sendResponse({ success: false, error: error.message });
-            });
-
-        return true; // 保持消息通道开放以进行异步响应
-    }
-
-    if (request.action === 'pollAIGeneration') {
-        // 轮询 AI 图像生成任务状态
-        const { apiToken, taskId } = request;
-        const pollUrl = `https://api-inference.modelscope.cn/v1/tasks/${taskId}`;
-
-        fetch(pollUrl, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${apiToken}`,
-                'Content-Type': 'application/json',
-                'X-ModelScope-Task-Type': 'image_generation'
             }
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    sendResponse({ success: false, error: data.error.message || data.error });
-                } else {
-                    sendResponse({
-                        success: true,
-                        status: data.task_status,
-                        images: data.output_images || [],
-                        message: data.message || ''
-                    });
-                }
-            })
-            .catch(error => {
-                sendResponse({ success: false, error: error.message });
-            });
+        })();
 
         return true; // 保持消息通道开放以进行异步响应
     }
