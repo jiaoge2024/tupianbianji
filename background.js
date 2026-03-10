@@ -49,10 +49,35 @@ function normalizeApiKey(apiKey) {
         .trim();
 }
 
-async function requestGeminiImage({ apiKey, prompt, model, aspectRatio, imageSize }) {
+function dataUrlToGeminiInlinePart(dataUrl) {
+    const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return null;
+
+    return {
+        inlineData: {
+            mimeType: match[1],
+            data: match[2]
+        }
+    };
+}
+
+async function requestGeminiImage({ apiKey, prompt, model, aspectRatio, imageSize, sourceImages = [] }) {
     const normalizedApiKey = normalizeApiKey(apiKey);
     if (!normalizedApiKey) {
         throw new Error('API Key 为空或格式无效');
+    }
+
+    const imageParts = Array.isArray(sourceImages)
+        ? sourceImages.map(dataUrlToGeminiInlinePart).filter(Boolean)
+        : [];
+    const parts = [...imageParts];
+
+    if (prompt) {
+        parts.push({ text: prompt });
+    }
+
+    if (parts.length === 0) {
+        throw new Error('Gemini 请求缺少提示词或参考图');
     }
 
     const requestUrl = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`);
@@ -65,7 +90,7 @@ async function requestGeminiImage({ apiKey, prompt, model, aspectRatio, imageSiz
         },
         body: JSON.stringify({
             contents: [{
-                parts: [{ text: prompt }]
+                parts
             }],
             generationConfig: {
                 responseModalities: ['TEXT', 'IMAGE'],
@@ -175,7 +200,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             prompt,
             model = 'gemini-3.1-flash-image-preview',
             aspectRatio = '1:1',
-            imageSize = '1K'
+            imageSize = '1K',
+            sourceImages = []
         } = request;
         const fallbackModel = 'gemini-2.5-flash-image';
 
@@ -186,7 +212,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     prompt,
                     model,
                     aspectRatio,
-                    imageSize
+                    imageSize,
+                    sourceImages
                 });
                 sendResponse({ success: true, ...result });
             } catch (error) {
@@ -197,7 +224,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             prompt,
                             model: fallbackModel,
                             aspectRatio,
-                            imageSize
+                            imageSize,
+                            sourceImages
                         });
                         sendResponse({
                             success: true,

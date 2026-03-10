@@ -9,6 +9,7 @@ const toolManager = {
     cropSizeLabel: null,
     aiBgState: null,
     idPhotoState: null,
+    aiGenState: null,
     toHexColor(color) {
         if (!color) return '#000000';
         if (typeof color !== 'string') return '#000000';
@@ -3394,6 +3395,8 @@ ${description}
                 this.showOCRConfigModal();
             });
         } else if (tool === 'ai-gen') {
+            this.renderAIGenPanel(panel);
+        } else if (false && tool === 'ai-gen') {
             const hasConfig = localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken');
             const statusClass = hasConfig ? 'success' : '';
             const statusText = hasConfig ? '✓ API 已配置' : '⚠ 请先配置 API Key';
@@ -5102,6 +5105,349 @@ ${description}
     },
 
     // ========== AI 图像生成功能 ==========
+    generateRandomAIGenIdea() {
+        const subjects = [
+            '一只戴着宇航员头盔的橘猫',
+            '站在霓虹街头的赛博少女',
+            '漂浮在半空中的玻璃城堡',
+            '雪山脚下发光的小木屋',
+            '黄昏海边骑复古摩托的女孩'
+        ];
+        const backgrounds = [
+            '雨夜霓虹都市',
+            '晨雾森林深处',
+            '金色日落海岸',
+            '未来感太空站平台',
+            '安静的欧式老城区'
+        ];
+        const contents = [
+            '主体面向镜头，周围有细小光粒和空气雾感',
+            '画面中加入自然倒影与层次丰富的前中后景',
+            '强调动态瞬间，衣摆或毛发有被风吹起的感觉',
+            '保留清晰主体轮廓，并增加有故事感的环境细节',
+            '让色彩干净通透，同时突出高级质感和真实纹理'
+        ];
+        const styles = [
+            '电影感写实风格',
+            '高端杂志封面风格',
+            '日系清新插画风格',
+            '超现实概念艺术风格',
+            '精致3D渲染风格'
+        ];
+        const sizes = [
+            { value: '1024x1024', hint: '适合正方形主视觉构图，主体居中更强' },
+            { value: '768x1024', hint: '适合竖版海报构图，强调人物或主体纵深' },
+            { value: '576x1024', hint: '适合手机竖屏画面，突出垂直延展和空间感' },
+            { value: '1024x768', hint: '适合横版叙事构图，表现环境与主体关系' },
+            { value: '1024x576', hint: '适合宽银幕电影镜头，突出氛围和场景铺陈' }
+        ];
+
+        const pick = (items) => items[Math.floor(Math.random() * items.length)];
+        const subject = pick(subjects);
+        const background = pick(backgrounds);
+        const content = pick(contents);
+        const style = pick(styles);
+        const size = pick(sizes);
+
+        return {
+            prompt: `${subject}，置身于${background}，${content}，整体为${style}，${size.hint}，高细节，画面精致，无文字无水印`,
+            size: size.value
+        };
+    },
+
+    ensureAIGenState() {
+        if (!this.aiGenState) {
+            this.aiGenState = {
+                mode: 'generate',
+                prompt: '',
+                size: '1024x1024',
+                uploadedImageDataUrl: '',
+                uploadedImageName: ''
+            };
+        }
+
+        return this.aiGenState;
+    },
+
+    hasAIGenCanvasSource() {
+        return Boolean(
+            window.canvas &&
+            window.canvas.width > 0 &&
+            window.canvas.height > 0 &&
+            typeof window.canvas.getObjects === 'function' &&
+            window.canvas.getObjects().length > 0
+        );
+    },
+
+    renderAIGenPanel(panel) {
+        const state = this.ensureAIGenState();
+        const hasConfig = Boolean(localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken'));
+        const hasCanvasSource = this.hasAIGenCanvasSource();
+        const hasUploadedImage = Boolean(state.uploadedImageDataUrl);
+        const isEditMode = state.mode !== 'generate';
+        const actionText = isEditMode ? '开始编辑' : '开始生成';
+        const promptPlaceholder = state.mode === 'generate'
+            ? '描述你想生成的图片，例如：一只金色的猫咪在阳光下玩耍'
+            : '描述你要如何编辑图片，例如：保留主体，把背景改成日落海边，并增强电影感';
+
+        let sourceSection = `
+            <div class="aigen-source-note">
+                仅使用提示词进行生成，不会附带参考图。
+            </div>
+        `;
+
+        if (state.mode === 'upload') {
+            sourceSection = `
+                <div class="aigen-source-card">
+                    <input type="file" id="aigen-upload-input" accept="image/*" hidden>
+                    <button id="aigen-upload-btn" class="secondary-btn" style="width:100%;">上传参考图</button>
+                    ${hasUploadedImage ? `
+                        <div class="aigen-source-preview">
+                            <img src="${state.uploadedImageDataUrl}" alt="参考图预览">
+                            <div class="aigen-source-meta">
+                                <strong>${state.uploadedImageName || '已选择参考图'}</strong>
+                                <span>Gemini 会基于这张图做编辑</span>
+                            </div>
+                            <button id="aigen-clear-upload-btn" class="secondary-btn" type="button">移除</button>
+                        </div>
+                    ` : `
+                        <div class="aigen-source-empty">
+                            上传一张图片，Gemini 会结合提示词直接编辑它。
+                        </div>
+                    `}
+                </div>
+            `;
+        } else if (state.mode === 'canvas') {
+            sourceSection = `
+                <div class="aigen-source-card ${hasCanvasSource ? 'ready' : 'warning'}">
+                    <div class="aigen-source-meta">
+                        <strong>${hasCanvasSource ? '已检测到当前画板内容' : '当前画板为空'}</strong>
+                        <span>${hasCanvasSource ? '会把当前画板扁平化后发送给 Gemini 做编辑' : '请先在画板中打开或编辑一张图片'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        panel.innerHTML = `
+            <div class="aigen-panel-info ${hasConfig ? 'success' : ''}">
+                ${hasConfig ? 'API 已配置，可直接生成或编辑图片' : '请先配置 Gemini API Key'}
+            </div>
+            <div class="prop-item">
+                <label>模式</label>
+                <div class="aigen-mode-grid">
+                    <label class="aigen-mode-option ${state.mode === 'generate' ? 'active' : ''}">
+                        <input type="radio" name="aigen-mode" value="generate" ${state.mode === 'generate' ? 'checked' : ''}>
+                        <span>文生图</span>
+                        <small>只用提示词生成</small>
+                    </label>
+                    <label class="aigen-mode-option ${state.mode === 'upload' ? 'active' : ''}">
+                        <input type="radio" name="aigen-mode" value="upload" ${state.mode === 'upload' ? 'checked' : ''}>
+                        <span>上传图编辑</span>
+                        <small>上传一张图再编辑</small>
+                    </label>
+                    <label class="aigen-mode-option ${state.mode === 'canvas' ? 'active' : ''}">
+                        <input type="radio" name="aigen-mode" value="canvas" ${state.mode === 'canvas' ? 'checked' : ''}>
+                        <span>画板图编辑</span>
+                        <small>基于当前画板内容</small>
+                    </label>
+                </div>
+            </div>
+            <div class="prop-item">
+                <label>提示词</label>
+                <textarea id="aigen-prompt" class="aigen-prompt-input" placeholder="${promptPlaceholder}">${state.prompt || ''}</textarea>
+            </div>
+            <div class="prop-item" style="margin-top:10px;">
+                <button id="aigen-random-prompt-btn" class="secondary-btn" style="width:100%;">随机灵感提示词</button>
+            </div>
+            <div class="prop-item">
+                <label>输出尺寸</label>
+                <select id="aigen-size" style="width:100%; padding:8px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:6px; font-size:14px;">
+                    <option value="1024x1024" ${state.size === '1024x1024' ? 'selected' : ''}>1:1 (1024x1024)</option>
+                    <option value="768x1024" ${state.size === '768x1024' ? 'selected' : ''}>3:4 (768x1024)</option>
+                    <option value="576x1024" ${state.size === '576x1024' ? 'selected' : ''}>9:16 (576x1024)</option>
+                    <option value="1024x768" ${state.size === '1024x768' ? 'selected' : ''}>4:3 (1024x768)</option>
+                    <option value="1024x576" ${state.size === '1024x576' ? 'selected' : ''}>16:9 (1024x576)</option>
+                </select>
+            </div>
+            <div class="prop-item">
+                <label>参考图</label>
+                ${sourceSection}
+            </div>
+            <div class="prop-item">
+                <button id="aigen-generate-btn" class="primary-btn" style="width:100%;" ${!hasConfig ? 'disabled' : ''}>${actionText}</button>
+            </div>
+            <div class="prop-item" style="margin-top:10px;">
+                <button id="aigen-settings-btn" class="secondary-btn" style="width:100%;">API 设置</button>
+            </div>
+            <div class="prop-item" style="margin-top:15px;">
+                <p style="font-size:11px; color:#888; text-align:center;">使用 Gemini 图像模型，支持文生图、上传图编辑和当前画板图编辑</p>
+            </div>
+        `;
+
+        this.bindAIGenPanelEvents();
+    },
+
+    bindAIGenPanelEvents() {
+        const state = this.ensureAIGenState();
+
+        document.querySelectorAll('input[name="aigen-mode"]').forEach(input => {
+            input.addEventListener('change', (e) => {
+                state.mode = e.target.value;
+                this.updatePropertyPanel('ai-gen');
+            });
+        });
+
+        const promptInput = document.getElementById('aigen-prompt');
+        if (promptInput) {
+            promptInput.addEventListener('input', (e) => {
+                state.prompt = e.target.value;
+            });
+        }
+
+        const sizeSelect = document.getElementById('aigen-size');
+        if (sizeSelect) {
+            sizeSelect.addEventListener('change', (e) => {
+                state.size = e.target.value;
+            });
+        }
+
+        const randomBtn = document.getElementById('aigen-random-prompt-btn');
+        if (randomBtn) {
+            randomBtn.addEventListener('click', () => {
+                const idea = this.generateRandomAIGenIdea();
+                state.prompt = idea.prompt;
+                state.size = idea.size;
+                if (promptInput) {
+                    promptInput.value = idea.prompt;
+                    promptInput.focus();
+                }
+                if (sizeSelect) {
+                    sizeSelect.value = idea.size;
+                }
+            });
+        }
+
+        const uploadBtn = document.getElementById('aigen-upload-btn');
+        const uploadInput = document.getElementById('aigen-upload-input');
+        if (uploadBtn && uploadInput) {
+            uploadBtn.addEventListener('click', () => uploadInput.click());
+            uploadInput.addEventListener('change', async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                try {
+                    await this.handleAIGenUpload(file);
+                } catch (error) {
+                    alert(`上传参考图失败: ${error.message}`);
+                } finally {
+                    uploadInput.value = '';
+                }
+            });
+        }
+
+        const clearUploadBtn = document.getElementById('aigen-clear-upload-btn');
+        if (clearUploadBtn) {
+            clearUploadBtn.addEventListener('click', () => {
+                state.uploadedImageDataUrl = '';
+                state.uploadedImageName = '';
+                this.updatePropertyPanel('ai-gen');
+            });
+        }
+
+        const generateBtn = document.getElementById('aigen-generate-btn');
+        if (generateBtn) {
+            generateBtn.addEventListener('click', () => {
+                const prompt = (state.prompt || '').trim();
+                if (!prompt) {
+                    alert('请输入提示词');
+                    return;
+                }
+
+                this.callAIGenAPI({
+                    prompt,
+                    size: state.size,
+                    mode: state.mode
+                });
+            });
+        }
+
+        const settingsBtn = document.getElementById('aigen-settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                this.showAIGenConfigModal();
+            });
+        }
+    },
+
+    async readFileAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('读取图片失败'));
+            reader.readAsDataURL(file);
+        });
+    },
+
+    async optimizeAIGenImageDataUrl(dataUrl, maxDimension = 1536) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => {
+                const longestSide = Math.max(image.width, image.height);
+                const scale = longestSide > maxDimension ? maxDimension / longestSide : 1;
+                const targetWidth = Math.max(1, Math.round(image.width * scale));
+                const targetHeight = Math.max(1, Math.round(image.height * scale));
+                const tempCanvas = document.createElement('canvas');
+                const ctx = tempCanvas.getContext('2d');
+
+                tempCanvas.width = targetWidth;
+                tempCanvas.height = targetHeight;
+
+                if (!ctx) {
+                    reject(new Error('创建临时画布失败'));
+                    return;
+                }
+
+                ctx.drawImage(image, 0, 0, targetWidth, targetHeight);
+                resolve(tempCanvas.toDataURL('image/png'));
+            };
+            image.onerror = () => reject(new Error('处理参考图失败'));
+            image.src = dataUrl;
+        });
+    },
+
+    async handleAIGenUpload(file) {
+        if (!file || !file.type.startsWith('image/')) {
+            throw new Error('请选择图片文件');
+        }
+
+        const state = this.ensureAIGenState();
+        const rawDataUrl = await this.readFileAsDataUrl(file);
+        const optimizedDataUrl = await this.optimizeAIGenImageDataUrl(rawDataUrl);
+        state.uploadedImageDataUrl = optimizedDataUrl;
+        state.uploadedImageName = file.name;
+        this.updatePropertyPanel('ai-gen');
+    },
+
+    async getAIGenCanvasSourceDataUrl() {
+        if (!this.hasAIGenCanvasSource()) {
+            throw new Error('当前画板没有可编辑的图片');
+        }
+
+        const rawDataUrl = window.canvas.toDataURL({
+            format: 'png',
+            multiplier: 1
+        });
+
+        return this.optimizeAIGenImageDataUrl(rawDataUrl);
+    },
+
+    buildAIGenRequestPrompt(mode, prompt) {
+        if (mode === 'generate') {
+            return prompt;
+        }
+
+        return `请基于我提供的图片进行编辑，优先保留原图主体、构图和关键细节，只有在提示词明确要求时再重绘或替换。\n编辑要求：${prompt}`;
+    },
+
     initAIGen() {
         // 检查是否已配置 API Key
         const apiKey = localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken');
@@ -5229,7 +5575,7 @@ ${description}
         }
     },
 
-    async callAIGenAPI(prompt, size = '1024x1024') {
+    async _legacyCallAIGenAPI({ prompt, size = '1024x1024', mode = 'generate' } = {}) {
         const apiKey = (localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken') || '')
             .replace(/[\u200B-\u200D\uFEFF]/g, '')
             .replace(/[\u00A0\u3000]/g, ' ')
@@ -5249,6 +5595,26 @@ ${description}
             '1024x576': '16:9'
         };
         const aspectRatio = sizeMap[size] || '1:1';
+        const state = this.ensureAIGenState();
+        const sourceImages = [];
+        const isEditMode = mode !== 'generate';
+
+        if (mode === 'upload') {
+            if (!state.uploadedImageDataUrl) {
+                alert('请先上传一张参考图');
+                return;
+            }
+            sourceImages.push(state.uploadedImageDataUrl);
+        }
+
+        if (mode === 'canvas') {
+            try {
+                sourceImages.push(await this.getAIGenCanvasSourceDataUrl());
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+        }
 
         const btn = document.getElementById('aigen-generate-btn');
         const originalText = btn ? btn.textContent : '';
@@ -5316,6 +5682,128 @@ ${description}
             alert(`AI 图像生成失败: ${error.message}`);
 
             // 如果是 token 相关错误，提示重新配置
+            if (error.message.includes('Key') || error.message.includes('key') || error.message.includes('401') || error.message.includes('403') || error.message.includes('认证')) {
+                localStorage.removeItem('aigenApiKey');
+                localStorage.removeItem('aigenApiToken');
+                this.updatePropertyPanel('ai-gen');
+            }
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    },
+
+    async callAIGenAPI({ prompt, size = '1024x1024', mode = 'generate' } = {}) {
+        const apiKey = (localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken') || '')
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/[\u00A0\u3000]/g, ' ')
+            .replace(/\s+/g, '')
+            .trim();
+        if (!apiKey) {
+            alert('请先配置 API Key');
+            this.showAIGenConfigModal();
+            return;
+        }
+
+        const sizeMap = {
+            '1024x1024': '1:1',
+            '768x1024': '3:4',
+            '576x1024': '9:16',
+            '1024x768': '4:3',
+            '1024x576': '16:9'
+        };
+        const aspectRatio = sizeMap[size] || '1:1';
+        const state = this.ensureAIGenState();
+        const sourceImages = [];
+        const isEditMode = mode !== 'generate';
+
+        if (mode === 'upload') {
+            if (!state.uploadedImageDataUrl) {
+                alert('请先上传一张参考图');
+                return;
+            }
+            sourceImages.push(state.uploadedImageDataUrl);
+        }
+
+        if (mode === 'canvas') {
+            try {
+                sourceImages.push(await this.getAIGenCanvasSourceDataUrl());
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+        }
+
+        const btn = document.getElementById('aigen-generate-btn');
+        const originalText = btn ? btn.textContent : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = isEditMode ? '编辑中...' : '生成中...';
+        }
+
+        const resultModal = document.getElementById('aigen-result-modal');
+        const loadingDiv = document.getElementById('aigen-result-loading');
+        const resultImage = document.getElementById('aigen-result-image');
+        const useImageBtn = document.getElementById('aigen-use-image');
+        const statusText = document.getElementById('aigen-status-text');
+
+        if (resultModal) resultModal.style.display = 'flex';
+        if (loadingDiv) loadingDiv.style.display = 'block';
+        if (resultImage) resultImage.style.display = 'none';
+        if (useImageBtn) useImageBtn.style.display = 'none';
+        if (statusText) {
+            statusText.textContent = isEditMode
+                ? '正在把参考图和提示词一起发送给 Gemini，请稍候...'
+                : '正在调用 Gemini 生成图片...';
+        }
+
+        try {
+            const generationResult = await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    action: 'startAIGeneration',
+                    apiKey,
+                    prompt: this.buildAIGenRequestPrompt(mode, prompt),
+                    model: 'gemini-3.1-flash-image-preview',
+                    aspectRatio,
+                    imageSize: '1K',
+                    sourceImages
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
+
+                    if (response && response.success) {
+                        resolve(response);
+                    } else {
+                        reject(new Error(response ? response.error : '生成图片失败'));
+                    }
+                });
+            });
+
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (statusText) {
+                const modelTip = generationResult.fallbackFrom
+                    ? `当前已自动回退到 ${generationResult.modelUsed}`
+                    : `使用 ${generationResult.modelUsed} ${isEditMode ? '编辑完成' : '生成完成'}`;
+                statusText.textContent = `Gemini 已返回结果，${modelTip}`;
+            }
+            if (resultImage) {
+                resultImage.src = generationResult.imageDataUrl;
+                resultImage.style.display = 'block';
+            }
+            if (useImageBtn) useImageBtn.style.display = 'inline-block';
+
+        } catch (error) {
+            console.error('AI 图像生成失败:', error);
+
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            if (statusText) statusText.textContent = '';
+
+            alert(`AI 图像生成失败: ${error.message}`);
+
             if (error.message.includes('Key') || error.message.includes('key') || error.message.includes('401') || error.message.includes('403') || error.message.includes('认证')) {
                 localStorage.removeItem('aigenApiKey');
                 localStorage.removeItem('aigenApiToken');

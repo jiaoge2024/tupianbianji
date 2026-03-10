@@ -20,6 +20,130 @@ const zoomLevel = document.getElementById('zoom-level');
 
 const CANVAS_VIEW_MARGIN = 80;
 
+const sidebarSections = [
+    {
+        tag: '修整',
+        title: '基础处理',
+        description: '常规修图入口集中放在一起，优先覆盖最高频操作。',
+        tools: ['crop', 'resize', 'compress', 'rotate', 'filter', 'frame']
+    },
+    {
+        tag: '修复',
+        title: '增强与去除',
+        description: '把去印、抠除、换背景这类目标接近的功能放到同一区域。',
+        tools: ['mosaic', 'remove-watermark', 'magic-eraser', 'ai-background', 'id-photo']
+    },
+    {
+        tag: '标注',
+        title: '说明与装饰',
+        description: '文字、水印、形状和贴纸统一收纳，减少素材类入口的重复感。',
+        tools: ['text', 'shape', 'image-watermark', 'sticker']
+    },
+    {
+        tag: '智能',
+        title: '识别与生成',
+        description: 'AI 与识别能力集中展示，和普通修图入口彻底分开。',
+        tools: ['ocr', 'ai-gen', 'icon-gen']
+    },
+    {
+        tag: '输出',
+        title: '切图与批量',
+        description: '把切图、重命名、批量处理与拼图统一放到最终输出区。',
+        tools: ['grid-slice', 'long-slice', 'batch-processor', 'batch', 'collage']
+    }
+];
+
+const sidebarToolMeta = {
+    crop: { icon: '✂', title: '裁剪', desc: '自由裁切与常用比例' },
+    resize: { icon: '↔', title: '尺寸', desc: '调整宽高与缩放' },
+    compress: { icon: '⤓', title: '压缩', desc: '减小体积并控制质量' },
+    rotate: { icon: '⟳', title: '旋转', desc: '快速修正方向' },
+    filter: { icon: '◐', title: '滤镜', desc: '预设风格与手动调节' },
+    frame: { icon: '▣', title: '图框阴影', desc: '边框、留白与氛围感' },
+    mosaic: { icon: '▒', title: '马赛克', desc: '遮挡敏感信息' },
+    'remove-watermark': { icon: '⌦', title: '裁边去印', desc: '边缘水印快速处理' },
+    'magic-eraser': { icon: '✦', title: '涂抹消除', desc: '局部擦除与智能修复' },
+    'ai-background': { icon: '☁', title: '背景替换', desc: '抠图后更换场景' },
+    'id-photo': { icon: '◎', title: '证件照', desc: '规范尺寸与底色' },
+    text: { icon: 'T', title: '添加文本', desc: '标题、水印与说明' },
+    shape: { icon: '△', title: '标注形状', desc: '箭头、框选和强调' },
+    'image-watermark': { icon: '◫', title: '图片水印', desc: 'Logo 与品牌露出' },
+    sticker: { icon: '★', title: '添加贴纸', desc: '表情和装饰元素' },
+    ocr: { icon: '文', title: 'OCR识别', desc: '提取画面中的文字' },
+    'ai-gen': { icon: 'AI', title: 'AI生图', desc: '生成与编辑图像' },
+    'icon-gen': { icon: '◈', title: '插件图标', desc: '生成扩展图标素材' },
+    'grid-slice': { icon: '#', title: '网格切图', desc: '九宫格与矩阵切片' },
+    'long-slice': { icon: '↕', title: '长图切片', desc: '连续拆分长图' },
+    'batch-processor': { icon: '⚡', title: '批量处理', desc: '多图统一压缩与转换' },
+    batch: { icon: 'Aa', title: '批量重命名', desc: '统一文件命名规则' },
+    collage: { icon: '▥', title: '拼图', desc: '模板化组合多张图片' }
+};
+
+function rebuildSidebarNavigation() {
+    const toolList = document.querySelector('.tool-list');
+    if (!toolList) return;
+
+    const buttonMap = new Map(
+        Array.from(toolList.querySelectorAll('.tool-btn')).map(button => [button.dataset.tool, button])
+    );
+
+    toolList.innerHTML = '';
+
+    sidebarSections.forEach((section) => {
+        const group = document.createElement('section');
+        group.className = 'tool-group';
+
+        const header = document.createElement('div');
+        header.className = 'tool-group-head';
+        header.innerHTML = `
+            <span class="tool-group-tag">${section.tag}</span>
+            <h3>${section.title}</h3>
+            <p>${section.description}</p>
+        `;
+
+        const body = document.createElement('div');
+        body.className = 'tool-group-body';
+
+        section.tools.forEach((toolId) => {
+            const button = buttonMap.get(toolId);
+            const meta = sidebarToolMeta[toolId];
+            if (!button || !meta) return;
+
+            button.innerHTML = `
+                <span class="tool-btn-icon">${meta.icon}</span>
+                <span class="tool-btn-copy">
+                    <strong>${meta.title}</strong>
+                    <small>${meta.desc}</small>
+                </span>
+            `;
+
+            body.appendChild(button);
+        });
+
+        group.appendChild(header);
+        group.appendChild(body);
+        toolList.appendChild(group);
+    });
+
+    const propertyPanel = document.getElementById('property-panel');
+    const panelContent = document.getElementById('panel-content');
+    if (propertyPanel && panelContent && !propertyPanel.querySelector('.panel-shell-head')) {
+        const shellHead = document.createElement('div');
+        shellHead.className = 'panel-shell-head';
+        shellHead.innerHTML = `
+            <span class="panel-shell-tag">Inspector</span>
+            <h3>调整面板</h3>
+            <p>选中工具后，在这里完成参数设置与应用。</p>
+        `;
+        propertyPanel.insertBefore(shellHead, panelContent);
+    }
+
+    const authorCredit = document.getElementById('author-credit');
+    if (authorCredit) {
+        authorCredit.textContent = 'jiaoge';
+    }
+}
+
 function calculateCanvasView(width, height) {
     const maxWidth = Math.max(dropZone.offsetWidth - CANVAS_VIEW_MARGIN, 1);
     const maxHeight = Math.max(dropZone.offsetHeight - CANVAS_VIEW_MARGIN, 1);
@@ -82,6 +206,7 @@ function installCanvasDisplaySync(canvasInstance) {
 
 window.syncCanvasDisplay = syncCanvasDisplay;
 window.installCanvasDisplaySync = installCanvasDisplaySync;
+rebuildSidebarNavigation();
 
 // Initialize Fabric Canvas
 function initCanvas() {
