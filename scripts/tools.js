@@ -10,6 +10,7 @@ const toolManager = {
     aiBgState: null,
     idPhotoState: null,
     aiGenState: null,
+    docExportState: null,
     toHexColor(color) {
         if (!color) return '#000000';
         if (typeof color !== 'string') return '#000000';
@@ -24,7 +25,7 @@ const toolManager = {
 
     activate(toolName) {
         // 检查 canvas 是否已初始化（以下工具不需要 canvas：批量操作、插件图标、AI生图）
-        const noCanvasTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen'];
+        const noCanvasTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen', 'doc-export'];
         if (!window.canvas && !noCanvasTools.includes(toolName)) {
             if (toolName !== 'select') {
                 alert('请先打开或上传一张图片');
@@ -35,7 +36,7 @@ const toolManager = {
         // 如果点击的是当前已激活的工具，且不是'select'，则切换回'select'（实现取消当前工具的功能）
         // 排除支持连续操作的工具：shape（可添加多个形状）、text（可添加多个文字）、sticker（可添加多个贴纸）、image-watermark（可添加多个水印）
         // 排除独立功能工具：batch（批量重命名）、collage（拼图）、batch-processor（批量处理中心）、icon-gen（插件图标）、ai-gen（AI生图）
-        const independentTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen'];
+        const independentTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen', 'doc-export'];
         if (this.currentTool === toolName && toolName !== 'select' &&
             toolName !== 'shape' && toolName !== 'text' && toolName !== 'sticker' &&
             toolName !== 'image-watermark' && !independentTools.includes(toolName)) {
@@ -52,7 +53,7 @@ const toolManager = {
         this.currentTool = toolName;
 
         // 批量操作和独立工具不需要重置 canvas 状态
-        const noResetTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen'];
+        const noResetTools = ['batch', 'collage', 'batch-processor', 'icon-gen', 'ai-gen', 'doc-export'];
         if (!noResetTools.includes(toolName)) {
             this.resetCanvasState();
         }
@@ -119,6 +120,9 @@ const toolManager = {
                 break;
             case 'ai-gen':
                 this.initAIGen();
+                break;
+            case 'doc-export':
+                this.initDocumentExport();
                 break;
             case 'magic-eraser':
                 this.initMagicEraser();
@@ -3333,7 +3337,7 @@ ${description}
         }
 
         // 对于连续操作工具，如果尝试切换到 'select'，则不执行任何操作
-        const continuousTools = ['shape', 'text', 'sticker', 'image-watermark'];
+        const continuousTools = ['shape', 'text', 'sticker', 'image-watermark', 'doc-export'];
         if (tool === 'select' && continuousTools.includes(this.currentTool)) {
             return;
         }
@@ -3396,6 +3400,8 @@ ${description}
             });
         } else if (tool === 'ai-gen') {
             this.renderAIGenPanel(panel);
+        } else if (tool === 'doc-export') {
+            this.renderDocumentExportPanel(panel);
         } else if (false && tool === 'ai-gen') {
             const hasConfig = localStorage.getItem('aigenApiKey') || localStorage.getItem('aigenApiToken');
             const statusClass = hasConfig ? 'success' : '';
@@ -5462,6 +5468,446 @@ ${description}
 
         // 设置 AI 生成模态框事件
         this.setupAIGenModalEvents();
+    },
+
+    initDocumentExport() {
+        this.ensureDocumentExportState();
+        this.updatePropertyPanel('doc-export');
+    },
+
+    hasDocumentExportCanvasSource() {
+        return Boolean(
+            window.canvas &&
+            window.canvas.width > 0 &&
+            window.canvas.height > 0 &&
+            (
+                (typeof window.canvas.getObjects === 'function' && window.canvas.getObjects().length > 0) ||
+                window.canvas.backgroundImage
+            )
+        );
+    },
+
+    ensureDocumentExportState() {
+        if (!this.docExportState) {
+            this.docExportState = {
+                source: this.hasDocumentExportCanvasSource() ? 'canvas' : 'upload',
+                format: 'pdf',
+                pagePreset: 'a4',
+                orientation: 'portrait',
+                fit: 'contain',
+                fileName: '图片文档',
+                progressText: '',
+                exporting: false,
+                uploadedImages: []
+            };
+        }
+
+        return this.normalizeDocumentExportState(this.docExportState);
+    },
+
+    normalizeDocumentExportState(state) {
+        if (!state) return null;
+
+        if (!this.hasDocumentExportCanvasSource() && state.source === 'canvas') {
+            state.source = 'upload';
+        }
+
+        if (!['pdf', 'word', 'ppt'].includes(state.format)) {
+            state.format = 'pdf';
+        }
+
+        if (state.format === 'pdf' && !['a4', 'a3'].includes(state.pagePreset)) {
+            state.pagePreset = 'a4';
+        }
+
+        if (state.format === 'word') {
+            state.pagePreset = 'document';
+        }
+
+        if (state.format === 'ppt' && !['wide', 'standard'].includes(state.pagePreset)) {
+            state.pagePreset = 'wide';
+        }
+
+        if (!['portrait', 'landscape'].includes(state.orientation)) {
+            state.orientation = 'portrait';
+        }
+
+        if (!['contain', 'cover'].includes(state.fit)) {
+            state.fit = 'contain';
+        }
+
+        if (!state.fileName || !String(state.fileName).trim()) {
+            state.fileName = '图片文档';
+        }
+
+        if (!Array.isArray(state.uploadedImages)) {
+            state.uploadedImages = [];
+        }
+
+        return state;
+    },
+
+    escapeDocumentExportHtml(value = '') {
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    getDocumentExportPresetOptions(format) {
+        if (format === 'pdf') {
+            return [
+                { value: 'a4', label: 'A4 页面' },
+                { value: 'a3', label: 'A3 页面' }
+            ];
+        }
+
+        if (format === 'word') {
+            return [
+                { value: 'document', label: '文档页' }
+            ];
+        }
+
+        return [
+            { value: 'wide', label: '宽屏 16:9' },
+            { value: 'standard', label: '标准 4:3' }
+        ];
+    },
+
+    renderDocumentExportPanel(panel) {
+        const state = this.ensureDocumentExportState();
+        const hasCanvasSource = this.hasDocumentExportCanvasSource();
+        const hasUploads = state.uploadedImages.length > 0;
+        const canExport = state.source === 'canvas' ? hasCanvasSource : hasUploads;
+        const presetOptions = this.getDocumentExportPresetOptions(state.format);
+        const presetLabel = state.format === 'ppt' ? '版式' : '页面规格';
+        const escapedFileName = this.escapeDocumentExportHtml(state.fileName);
+
+        const uploadSection = state.source === 'upload' ? `
+            <div class="prop-item">
+                <label>图片列表</label>
+                <input type="file" id="doc-export-upload-input" accept="image/*" multiple hidden>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <button id="doc-export-upload-btn" class="secondary-btn" style="flex:1;">上传图片</button>
+                    <button id="doc-export-clear-btn" class="secondary-btn" style="flex:1;" ${hasUploads ? '' : 'disabled'}>清空列表</button>
+                </div>
+                ${hasUploads ? `
+                    <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px; max-height:200px; overflow:auto;">
+                        ${state.uploadedImages.map((image) => `
+                            <div style="display:flex; align-items:center; gap:10px; padding:8px; background:#202020; border:1px solid #333; border-radius:8px;">
+                                <img src="${image.dataUrl}" alt="${this.escapeDocumentExportHtml(image.name)}" style="width:44px; height:44px; object-fit:cover; border-radius:6px;">
+                                <div style="flex:1; min-width:0;">
+                                    <strong style="display:block; font-size:12px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${this.escapeDocumentExportHtml(image.name)}</strong>
+                                    <span style="font-size:11px; color:#888;">${image.width} × ${image.height}</span>
+                                </div>
+                                <button class="secondary-btn doc-export-remove-btn" data-id="${image.id}" type="button">移除</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div style="margin-top:10px; padding:12px; border:1px dashed #3a3a3a; border-radius:8px; color:#888; font-size:12px; text-align:center;">
+                        上传一张或多张图片，导出时会按当前顺序一张一页。
+                    </div>
+                `}
+            </div>
+        ` : `
+            <div class="prop-item">
+                <label>当前画板</label>
+                <div style="margin-top:8px; padding:12px; border:1px solid ${hasCanvasSource ? '#264f7d' : '#5b3434'}; background:${hasCanvasSource ? 'rgba(26, 115, 232, 0.08)' : 'rgba(120, 40, 40, 0.12)'}; border-radius:8px; color:${hasCanvasSource ? '#cfe3ff' : '#f5b8b8'}; font-size:12px;">
+                    ${hasCanvasSource ? '将把当前画板扁平化后导出为文档页面。' : '当前画板为空，请先打开图片或切换到上传多图。'}
+                </div>
+            </div>
+        `;
+
+        panel.innerHTML = `
+            <div class="prop-item">
+                <label>图片来源</label>
+                <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; margin-top:8px;">
+                    <label style="padding:10px; border:1px solid ${state.source === 'canvas' ? '#1a73e8' : '#333'}; border-radius:8px; background:${state.source === 'canvas' ? 'rgba(26, 115, 232, 0.12)' : '#202020'}; color:white; cursor:${hasCanvasSource ? 'pointer' : 'not-allowed'}; opacity:${hasCanvasSource ? '1' : '0.5'};">
+                        <input type="radio" name="doc-export-source" value="canvas" ${state.source === 'canvas' ? 'checked' : ''} ${hasCanvasSource ? '' : 'disabled'}>
+                        <span style="display:block; font-weight:600; margin-top:6px;">当前画板</span>
+                        <small style="color:#9aa0a6;">导出当前编辑结果</small>
+                    </label>
+                    <label style="padding:10px; border:1px solid ${state.source === 'upload' ? '#1a73e8' : '#333'}; border-radius:8px; background:${state.source === 'upload' ? 'rgba(26, 115, 232, 0.12)' : '#202020'}; color:white; cursor:pointer;">
+                        <input type="radio" name="doc-export-source" value="upload" ${state.source === 'upload' ? 'checked' : ''}>
+                        <span style="display:block; font-weight:600; margin-top:6px;">上传多图</span>
+                        <small style="color:#9aa0a6;">合并导出成文档</small>
+                    </label>
+                </div>
+            </div>
+            ${uploadSection}
+            <div class="prop-item">
+                <label>导出格式</label>
+                <select id="doc-export-format" style="width:100%; padding:8px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:6px;">
+                    <option value="pdf" ${state.format === 'pdf' ? 'selected' : ''}>PDF</option>
+                    <option value="word" ${state.format === 'word' ? 'selected' : ''}>Word</option>
+                    <option value="ppt" ${state.format === 'ppt' ? 'selected' : ''}>PPT</option>
+                </select>
+            </div>
+            <div class="prop-item">
+                <label>${presetLabel}</label>
+                <select id="doc-export-preset" style="width:100%; padding:8px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:6px;">
+                    ${presetOptions.map((option) => `<option value="${option.value}" ${state.pagePreset === option.value ? 'selected' : ''}>${option.label}</option>`).join('')}
+                </select>
+            </div>
+            ${state.format !== 'ppt' ? `
+                <div class="prop-item">
+                    <label>页面方向</label>
+                    <select id="doc-export-orientation" style="width:100%; padding:8px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:6px;">
+                        <option value="portrait" ${state.orientation === 'portrait' ? 'selected' : ''}>纵向</option>
+                        <option value="landscape" ${state.orientation === 'landscape' ? 'selected' : ''}>横向</option>
+                    </select>
+                </div>
+            ` : ''}
+            <div class="prop-item">
+                <label>图片适配</label>
+                <select id="doc-export-fit" style="width:100%; padding:8px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:6px;">
+                    <option value="contain" ${state.fit === 'contain' ? 'selected' : ''}>完整显示</option>
+                    <option value="cover" ${state.fit === 'cover' ? 'selected' : ''}>铺满页面</option>
+                </select>
+            </div>
+            <div class="prop-item">
+                <label>文件名</label>
+                <input id="doc-export-file-name" type="text" value="${escapedFileName}" style="width:100%; padding:8px; background:#2d2d2d; color:white; border:1px solid #333; border-radius:6px;">
+            </div>
+            <div id="doc-export-progress" style="display:${state.progressText ? 'block' : 'none'}; margin-top:10px; padding:10px 12px; border-radius:8px; background:rgba(26, 115, 232, 0.08); color:#cfe3ff; font-size:12px;">
+                ${state.progressText || ''}
+            </div>
+            <button id="doc-export-start" class="primary-btn" style="width:100%; margin-top:12px;" ${(canExport && !state.exporting) ? '' : 'disabled'}>
+                ${state.exporting ? '导出中...' : '开始导出'}
+            </button>
+            <p style="font-size:11px; color:#888; margin-top:10px;">
+                当前规则：一张图片对应一页 PDF / 一页 Word / 一张幻灯片。
+            </p>
+        `;
+
+        this.bindDocumentExportPanelEvents();
+    },
+
+    bindDocumentExportPanelEvents() {
+        const state = this.ensureDocumentExportState();
+
+        document.querySelectorAll('input[name="doc-export-source"]').forEach((input) => {
+            input.addEventListener('change', (e) => {
+                state.source = e.target.value;
+                this.updatePropertyPanel('doc-export');
+            });
+        });
+
+        const formatSelect = document.getElementById('doc-export-format');
+        if (formatSelect) {
+            formatSelect.addEventListener('change', (e) => {
+                state.format = e.target.value;
+                this.normalizeDocumentExportState(state);
+                this.updatePropertyPanel('doc-export');
+            });
+        }
+
+        const presetSelect = document.getElementById('doc-export-preset');
+        if (presetSelect) {
+            presetSelect.addEventListener('change', (e) => {
+                state.pagePreset = e.target.value;
+            });
+        }
+
+        const orientationSelect = document.getElementById('doc-export-orientation');
+        if (orientationSelect) {
+            orientationSelect.addEventListener('change', (e) => {
+                state.orientation = e.target.value;
+            });
+        }
+
+        const fitSelect = document.getElementById('doc-export-fit');
+        if (fitSelect) {
+            fitSelect.addEventListener('change', (e) => {
+                state.fit = e.target.value;
+            });
+        }
+
+        const fileNameInput = document.getElementById('doc-export-file-name');
+        if (fileNameInput) {
+            fileNameInput.addEventListener('input', (e) => {
+                state.fileName = e.target.value;
+            });
+        }
+
+        const uploadBtn = document.getElementById('doc-export-upload-btn');
+        const uploadInput = document.getElementById('doc-export-upload-input');
+        if (uploadBtn && uploadInput) {
+            uploadBtn.addEventListener('click', () => uploadInput.click());
+            uploadInput.addEventListener('change', async (e) => {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+
+                try {
+                    await this.handleDocumentExportFiles(files);
+                } catch (error) {
+                    alert(`上传图片失败: ${error.message}`);
+                } finally {
+                    uploadInput.value = '';
+                }
+            });
+        }
+
+        const clearBtn = document.getElementById('doc-export-clear-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                state.uploadedImages = [];
+                state.progressText = '';
+                this.updatePropertyPanel('doc-export');
+            });
+        }
+
+        document.querySelectorAll('.doc-export-remove-btn').forEach((button) => {
+            button.addEventListener('click', () => {
+                state.uploadedImages = state.uploadedImages.filter((image) => image.id !== button.dataset.id);
+                this.updatePropertyPanel('doc-export');
+            });
+        });
+
+        const startBtn = document.getElementById('doc-export-start');
+        if (startBtn) {
+            startBtn.addEventListener('click', () => {
+                this.startDocumentExport();
+            });
+        }
+    },
+
+    setDocumentExportProgress(message = '') {
+        const state = this.ensureDocumentExportState();
+        state.progressText = message;
+
+        const progressEl = document.getElementById('doc-export-progress');
+        if (!progressEl) return;
+
+        if (message) {
+            progressEl.style.display = 'block';
+            progressEl.textContent = message;
+        } else {
+            progressEl.style.display = 'none';
+            progressEl.textContent = '';
+        }
+    },
+
+    loadImageMetaFromDataUrl(dataUrl) {
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            image.onload = () => {
+                resolve({
+                    width: image.width,
+                    height: image.height
+                });
+            };
+            image.onerror = () => reject(new Error('读取图片尺寸失败'));
+            image.src = dataUrl;
+        });
+    },
+
+    async readDocumentExportFile(file) {
+        const dataUrl = await this.readFileAsDataUrl(file);
+        const meta = await this.loadImageMetaFromDataUrl(dataUrl);
+
+        return {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            name: file.name,
+            dataUrl,
+            width: meta.width,
+            height: meta.height
+        };
+    },
+
+    async handleDocumentExportFiles(fileList) {
+        const state = this.ensureDocumentExportState();
+        const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+
+        if (files.length === 0) {
+            throw new Error('请选择图片文件');
+        }
+
+        const images = await Promise.all(files.map((file) => this.readDocumentExportFile(file)));
+        state.uploadedImages.push(...images);
+
+        state.source = 'upload';
+        this.updatePropertyPanel('doc-export');
+    },
+
+    getDocumentExportCanvasImage() {
+        if (!this.hasDocumentExportCanvasSource()) {
+            throw new Error('当前画板没有可导出的图片');
+        }
+
+        return {
+            id: 'canvas-current',
+            name: '当前画板.png',
+            dataUrl: window.canvas.toDataURL({
+                format: 'png',
+                multiplier: 1
+            }),
+            width: window.canvas.width,
+            height: window.canvas.height
+        };
+    },
+
+    collectDocumentExportImages() {
+        const state = this.ensureDocumentExportState();
+
+        if (state.source === 'canvas') {
+            return [this.getDocumentExportCanvasImage()];
+        }
+
+        if (!state.uploadedImages.length) {
+            throw new Error('请先上传至少一张图片');
+        }
+
+        return state.uploadedImages.map((image) => ({
+            name: image.name,
+            dataUrl: image.dataUrl,
+            width: image.width,
+            height: image.height
+        }));
+    },
+
+    async startDocumentExport() {
+        const state = this.ensureDocumentExportState();
+
+        if (state.exporting) return;
+        if (typeof DocumentExportService === 'undefined') {
+            alert('文档导出模块未加载，请刷新后重试');
+            return;
+        }
+
+        try {
+            const images = this.collectDocumentExportImages();
+            state.exporting = true;
+            this.updatePropertyPanel('doc-export');
+            this.setDocumentExportProgress('正在准备导出...');
+
+            await DocumentExportService.export(images, {
+                format: state.format,
+                preset: state.pagePreset,
+                orientation: state.orientation,
+                fit: state.fit,
+                fileName: state.fileName
+            }, (progress) => {
+                if (progress.stage === 'render') {
+                    this.setDocumentExportProgress(`正在准备第 ${progress.current}/${progress.total} 页...`);
+                } else if (progress.stage === 'write') {
+                    this.setDocumentExportProgress('正在生成文件...');
+                }
+            });
+
+            this.setDocumentExportProgress('');
+            alert('文档导出完成');
+        } catch (error) {
+            console.error('[DocumentExport] 导出失败:', error);
+            alert(`文档导出失败: ${error.message}`);
+        } finally {
+            state.exporting = false;
+            state.progressText = '';
+            this.updatePropertyPanel('doc-export');
+        }
     },
 
     showAIGenConfigModal() {

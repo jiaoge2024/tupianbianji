@@ -49,7 +49,7 @@ const sidebarSections = [
         tag: '输出',
         title: '切图与批量',
         description: '把切图、重命名、批量处理与拼图统一放到最终输出区。',
-        tools: ['grid-slice', 'long-slice', 'batch-processor', 'batch', 'collage']
+        tools: ['grid-slice', 'long-slice', 'doc-export', 'batch-processor', 'batch', 'collage']
     }
 ];
 
@@ -65,17 +65,18 @@ const sidebarToolMeta = {
     'magic-eraser': { icon: '✦', title: '涂抹消除', desc: '局部擦除与智能修复' },
     'ai-background': { icon: '☁', title: '背景替换', desc: '抠图后更换场景' },
     'id-photo': { icon: '◎', title: '证件照', desc: '规范尺寸与底色' },
-    text: { icon: 'T', title: '添加文本', desc: '标题、水印与说明' },
+    text: { icon: '文', title: '添加文本', desc: '标题、水印与说明' },
     shape: { icon: '△', title: '标注形状', desc: '箭头、框选和强调' },
-    'image-watermark': { icon: '◫', title: '图片水印', desc: 'Logo 与品牌露出' },
+    'image-watermark': { icon: '◫', title: '图片水印', desc: '标识与品牌露出' },
     sticker: { icon: '★', title: '添加贴纸', desc: '表情和装饰元素' },
-    ocr: { icon: '文', title: 'OCR识别', desc: '提取画面中的文字' },
-    'ai-gen': { icon: 'AI', title: 'AI生图', desc: '生成与编辑图像' },
+    ocr: { icon: '文', title: '文字识别', desc: '提取画面中的文字' },
+    'ai-gen': { icon: '绘', title: '智能生图', desc: '生成与编辑图像' },
     'icon-gen': { icon: '◈', title: '插件图标', desc: '生成扩展图标素材' },
     'grid-slice': { icon: '#', title: '网格切图', desc: '九宫格与矩阵切片' },
     'long-slice': { icon: '↕', title: '长图切片', desc: '连续拆分长图' },
+    'doc-export': { icon: '册', title: '文档导出', desc: '导出 PDF、Word、PPT' },
     'batch-processor': { icon: '⚡', title: '批量处理', desc: '多图统一压缩与转换' },
-    batch: { icon: 'Aa', title: '批量重命名', desc: '统一文件命名规则' },
+    batch: { icon: '名', title: '批量重命名', desc: '统一文件命名规则' },
     collage: { icon: '▥', title: '拼图', desc: '模板化组合多张图片' }
 };
 
@@ -228,7 +229,7 @@ function initCanvas() {
     });
 
     // Listen for object selection to update property panel
-    const continuousTools = ['shape', 'text', 'sticker', 'image-watermark'];
+    const continuousTools = ['shape', 'text', 'sticker', 'image-watermark', 'doc-export'];
 
     canvas.on('selection:created', () => {
         if (toolManager._stickerMode) return;  // 贴纸模式下不切换面板

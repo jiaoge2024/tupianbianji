@@ -88,17 +88,18 @@
                         <div class="tool-group">
                             <h3>水印/文字</h3>
                             <button class="tool-btn" data-tool="text">添加文本</button>
-                            <button class="tool-btn" data-tool="image-watermark" title="插入 Logo 或图片作为水印">图片水印</button>
+                            <button class="tool-btn" data-tool="image-watermark" title="插入标识或图片作为水印">图片水印</button>
                             <button class="tool-btn" data-tool="sticker">添加贴纸</button>
                         </div>
                         <div class="tool-group">
                             <h3>插件工具</h3>
                             <button class="tool-btn" data-tool="icon-gen">插件图标</button>
-                            <button class="tool-btn" data-tool="ocr">OCR识别</button>
-                            <button class="tool-btn" data-tool="ai-gen">AI生图</button>
+                            <button class="tool-btn" data-tool="ocr">文字识别</button>
+                            <button class="tool-btn" data-tool="ai-gen">智能生图</button>
                         </div>
                         <div class="tool-group">
                             <h3>批量操作</h3>
+                            <button class="tool-btn" data-tool="doc-export">文档导出</button>
                             <button class="tool-btn" data-tool="batch-processor">⚡ 批量处理</button>
                             <button class="tool-btn" data-tool="batch">批量重命名</button>
                             <button class="tool-btn" data-tool="collage">拼图</button>
@@ -679,7 +680,11 @@
     <script src="scripts/history.js"></script>
     <!-- ONNX Runtime Web for AI inpainting (WASM-only build) -->
     <script src="lib/ort.wasm.min.js"></script>
+    <script src="lib/jspdf.umd.min.js"></script>
+    <script src="lib/html-docx.js"></script>
+    <script src="lib/pptxgen.min.js"></script>
     <script src="scripts/lama-inpaint.js"></script>
+    <script src="scripts/document-export.js"></script>
     <script src="scripts/tools.js"></script>
     <script src="scripts/batch.js"></script>
     <script src="scripts/collage.js"></script>
